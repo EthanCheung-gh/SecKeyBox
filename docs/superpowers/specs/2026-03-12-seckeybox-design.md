@@ -61,14 +61,19 @@ interface Group {
 interface Item {
   id: string;
   group_id: string;
-  type: 'account' | 'api_key' | 'env_var';
+  type: 'account' | 'api_key' | 'env_var';  // Phase 1: only 'account'
   title: string;
   icon?: string;
-  is_favorite: boolean;
+  is_favorite: boolean;  // Stored in Phase 1, UI in Phase 3
   created_at: number;
   updated_at: number;
 }
 ```
+
+**Phase Clarifications:**
+- `is_favorite`: Field exists in database (Phase 1), but Favorites UI and filtering is Phase 3
+- `type`: Phase 1 only uses 'account'; 'api_key' and 'env_var' added in Phase 2
+- `parent_id` in Group: Nested groups supported in schema (Phase 1), but no UI until future release
 
 ### Account Item
 
@@ -264,6 +269,37 @@ fn delete_group(id: String) -> Result<(), String>;  // Cascades to items
 ### Item Commands
 
 ```rust
+// Return types for list views
+struct ItemSummary {
+    id: String,
+    title: String,
+    subtitle: String,  // username for accounts, key_name for API keys
+    icon: Option<String>,
+    type: String,
+    is_favorite: bool,
+}
+
+// Return type for detail view
+struct ItemDetail {
+    id: String,
+    group_id: String,
+    title: String,
+    icon: Option<String>,
+    type: String,
+    is_favorite: bool,
+    created_at: i64,
+    updated_at: i64,
+    // Type-specific fields (only one set based on type)
+    username: Option<String>,
+    password: Option<String>,      // Decrypted
+    website: Option<String>,
+    key_name: Option<String>,
+    key_value: Option<String>,     // Decrypted
+    endpoint: Option<String>,
+    env_vars: Option<Vec<{ key: String, value: String }>>,
+    notes: Option<String>,
+}
+
 #[tauri::command]
 fn get_items_by_group(group_id: String) -> Result<Vec<ItemSummary>, String>;
 
@@ -476,6 +512,65 @@ User enters master password
   - Show lockout message with countdown
   - Disable unlock button for 30 seconds
   - Clear counter after lockout expires
+
+### Auto-Lock During Edit
+
+**When auto-lock triggers while editing:**
+1. Check if form has unsaved changes (`form.dirty`)
+2. If yes: Show modal "Vault locked. Save changes?"
+   - [Discard] → Lock immediately, lose changes
+   - [Save & Lock] → Attempt save, then lock
+   - [Cancel] → Stay unlocked for 60 more seconds
+3. If no: Lock immediately without prompt
+
+### In-Memory Security Model
+
+**What stays in memory after unlock:**
+| Data | Location | Cleared On Lock |
+|------|----------|-----------------|
+| Master key | Rust backend (static RwLock) | ✅ Yes |
+| Decrypted item cache | None (decrypt on demand) | N/A |
+| Item summaries | Frontend Zustand store | ✅ Yes |
+| Form data | React component state | ✅ Yes (unmount) |
+
+**Security considerations:**
+- No decrypted data is cached; each `get_item_detail` call decrypts fresh
+- Master key stored in Rust static with `zeroize` on drop
+- Frontend stores only non-sensitive metadata (titles, usernames)
+
+### Database Migration Strategy
+
+**Approach: Manual versioned migrations**
+
+```rust
+// In db/schema.rs
+const SCHEMA_VERSION: i32 = 1;
+
+fn run_migrations(conn: &Connection) -> Result<()> {
+    let version: i32 = conn.query_row(
+        "SELECT value FROM vault_config WHERE key = 'schema_version'",
+        [], |row| row.get(0)
+    ).unwrap_or(0);
+    
+    if version < 1 {
+        // Run migration 1
+        conn.execute("ALTER TABLE groups ADD COLUMN color TEXT")?;
+    }
+    // Future migrations added here
+    
+    conn.execute(
+        "INSERT OR REPLACE INTO vault_config VALUES ('schema_version', ?)",
+        [SCHEMA_VERSION]
+    )?;
+    Ok(())
+}
+```
+
+**Migration rules:**
+- Each version is incremental and idempotent
+- Schema version stored in `vault_config` table
+- On app update, run all migrations > current version
+- Backup database before any migration
 
 ### Windows Hello Integration (Phase 2)
 
