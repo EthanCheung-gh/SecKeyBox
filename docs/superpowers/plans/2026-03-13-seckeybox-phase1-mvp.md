@@ -552,6 +552,9 @@ export interface ItemSummary {
   icon?: string;
   type: 'account';
   is_favorite: boolean;
+  group_id: string;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface ItemDetail {
@@ -1142,6 +1145,9 @@ pub struct ItemSummary {
     #[serde(rename = "type")]
     pub item_type: String,
     pub is_favorite: bool,
+    pub group_id: String,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1304,7 +1310,7 @@ pub fn delete_group(conn: &Connection, id: &str) -> Result<()> {
 pub fn get_all_items(conn: &Connection) -> Result<Vec<ItemSummary>> {
     let mut stmt = conn
         .prepare(
-            "SELECT i.id, i.title, a.username, i.icon, i.type, i.is_favorite 
+            "SELECT i.id, i.title, a.username, i.icon, i.type, i.is_favorite, i.group_id, i.created_at, i.updated_at 
              FROM items i 
              LEFT JOIN account_items a ON i.id = a.item_id 
              ORDER BY i.title"
@@ -1320,6 +1326,9 @@ pub fn get_all_items(conn: &Connection) -> Result<Vec<ItemSummary>> {
                 icon: row.get(3)?,
                 item_type: row.get(4)?,
                 is_favorite: row.get::<_, i32>(5)? != 0,
+                group_id: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
             })
         })
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?
@@ -1332,7 +1341,7 @@ pub fn get_all_items(conn: &Connection) -> Result<Vec<ItemSummary>> {
 pub fn get_items_by_group(conn: &Connection, group_id: &str) -> Result<Vec<ItemSummary>> {
     let mut stmt = conn
         .prepare(
-            "SELECT i.id, i.title, a.username, i.icon, i.type, i.is_favorite 
+            "SELECT i.id, i.title, a.username, i.icon, i.type, i.is_favorite, i.group_id, i.created_at, i.updated_at 
              FROM items i 
              LEFT JOIN account_items a ON i.id = a.item_id 
              WHERE i.group_id = ?1
@@ -1349,6 +1358,9 @@ pub fn get_items_by_group(conn: &Connection, group_id: &str) -> Result<Vec<ItemS
                 icon: row.get(3)?,
                 item_type: row.get(4)?,
                 is_favorite: row.get::<_, i32>(5)? != 0,
+                group_id: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
             })
         })
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?
@@ -3617,3 +3629,17 @@ This implementation plan covers Phase 1 MVP of SecKeyBox, including:
 4. **Integration** - Full app assembly and testing
 
 **Total estimated implementation time:** 4-6 hours for an experienced developer.
+
+---
+
+## Known Limitations for MVP
+
+The following features from the spec are **deferred** to keep the MVP focused:
+
+| Feature | Reason |
+|---------|--------|
+| Brute-force protection (5 attempts → 30s lockout) | Security enhancement; core unlock works without it |
+| Toast notifications for clipboard | UX enhancement; copy still works |
+| Password strength indicator | Phase 3 feature |
+
+These can be added in a follow-up iteration after the MVP is functional.
