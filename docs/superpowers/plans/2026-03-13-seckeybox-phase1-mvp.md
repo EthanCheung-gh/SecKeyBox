@@ -2015,4 +2015,1605 @@ Expected: Compilation succeeds without errors
 git add -A
 git commit -m "feat: integrate all Tauri commands and state management"
 ```
+
+---
+
+## Chunk 5: React Frontend - Core Infrastructure
+
+### Task 5.1: Create Tauri IPC Wrapper
+
+**Files:**
+- Create: `src/lib/tauri.ts`
+
+- [ ] **Step 1: Create Tauri invoke wrapper**
+
+Create `src/lib/tauri.ts`:
+
+```typescript
+import { invoke } from '@tauri-apps/api/core';
+
+export async function isVaultInitialized(): Promise<boolean> {
+  return invoke('is_vault_initialized');
+}
+
+export async function initializeVault(masterPassword: string): Promise<void> {
+  return invoke('initialize_vault', { masterPassword });
+}
+
+export async function unlockVault(masterPassword: string): Promise<boolean> {
+  return invoke('unlock_vault', { masterPassword });
+}
+
+export async function lockVault(): Promise<void> {
+  return invoke('lock_vault');
+}
+
+export async function isVaultUnlocked(): Promise<boolean> {
+  return invoke('is_vault_unlocked');
+}
+
+export async function getGroups() {
+  return invoke('get_groups');
+}
+
+export async function createNewGroup(name: string, icon?: string, parentId?: string, sortOrder?: number) {
+  return invoke('create_new_group', { name, icon, parentId, sortOrder });
+}
+
+export async function updateExistingGroup(id: string, name: string, icon?: string, sortOrder?: number) {
+  return invoke('update_existing_group', { id, name, icon, sortOrder });
+}
+
+export async function deleteExistingGroup(id: string) {
+  return invoke('delete_existing_group', { id });
+}
+
+export async function getAllItems() {
+  return invoke('get_all_items_cmd');
+}
+
+export async function getItemsByGroup(groupId: string) {
+  return invoke('get_items_by_group_cmd', { groupId });
+}
+
+export async function getItemDetail(id: string) {
+  return invoke('get_item_detail', { id });
+}
+
+export async function createNewAccountItem(
+  groupId: string,
+  title: string,
+  username: string,
+  password: string,
+  website?: string,
+  notes?: string
+) {
+  return invoke('create_new_account_item', { groupId, title, username, password, website, notes });
+}
+
+export async function updateExistingAccountItem(
+  id: string,
+  title: string,
+  username: string,
+  password?: string,
+  website?: string,
+  notes?: string
+) {
+  return invoke('update_existing_account_item', { id, title, username, password, website, notes });
+}
+
+export async function deleteExistingItem(id: string) {
+  return invoke('delete_existing_item', { id });
+}
+
+export async function toggleItemFavorite(id: string) {
+  return invoke('toggle_item_favorite', { id });
+}
+
+export async function copyToClipboard(text: string) {
+  return invoke('copy_to_clipboard', { text });
+}
+
+export async function clearClipboard() {
+  return invoke('clear_clipboard');
+}
 ```
+
+- [ ] **Step 2: Commit Tauri wrapper**
+
+```bash
+git add -A
+git commit -m "feat: add Tauri IPC wrapper for all backend commands"
+```
+
+### Task 5.2: Create Utility Functions
+
+**Files:**
+- Create: `src/lib/utils.ts`
+
+- [ ] **Step 1: Create utility functions**
+
+Create `src/lib/utils.ts`:
+
+```typescript
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export function formatTimestamp(timestamp: number): string {
+  return new Date(timestamp * 1000).toLocaleDateString();
+}
+
+export function truncate(str: string, length: number): string {
+  if (str.length <= length) return str;
+  return str.slice(0, length) + '...';
+}
+```
+
+- [ ] **Step 2: Commit utilities**
+
+```bash
+git add -A
+git commit -m "feat: add utility functions (cn, formatTimestamp, truncate)"
+```
+
+### Task 5.3: Create Zustand Stores
+
+**Files:**
+- Create: `src/stores/vault.ts`
+- Create: `src/stores/ui.ts`
+
+- [ ] **Step 1: Create vault store**
+
+Create `src/stores/vault.ts`:
+
+```typescript
+import { create } from 'zustand';
+import type { Group, ItemSummary, ItemDetail } from '@/types';
+import * as api from '@/lib/tauri';
+
+interface VaultState {
+  isInitialized: boolean | null;
+  isUnlocked: boolean;
+  groups: Group[];
+  items: ItemSummary[];
+  selectedItem: ItemDetail | null;
+  isLoading: boolean;
+  error: string | null;
+  
+  checkInitialized: () => Promise<void>;
+  initialize: (password: string) => Promise<void>;
+  unlock: (password: string) => Promise<void>;
+  lock: () => Promise<void>;
+  loadGroups: () => Promise<void>;
+  loadItems: (groupId?: string) => Promise<void>;
+  selectItem: (id: string) => Promise<void>;
+  clearSelection: () => void;
+  createGroup: (name: string, icon?: string) => Promise<void>;
+  updateGroup: (id: string, name: string, icon?: string) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
+  createItem: (data: {
+    groupId: string;
+    title: string;
+    username: string;
+    password: string;
+    website?: string;
+    notes?: string;
+  }) => Promise<void>;
+  updateItem: (id: string, data: {
+    title: string;
+    username: string;
+    password?: string;
+    website?: string;
+    notes?: string;
+  }) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
+  clearError: () => void;
+}
+
+export const useVaultStore = create<VaultState>((set, get) => ({
+  isInitialized: null,
+  isUnlocked: false,
+  groups: [],
+  items: [],
+  selectedItem: null,
+  isLoading: false,
+  error: null,
+
+  checkInitialized: async () => {
+    try {
+      const initialized = await api.isVaultInitialized();
+      set({ isInitialized: initialized });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  initialize: async (password) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.initializeVault(password);
+      set({ isInitialized: true, isUnlocked: true, isLoading: false });
+      await get().loadGroups();
+    } catch (e) {
+      set({ error: String(e), isLoading: false });
+    }
+  },
+
+  unlock: async (password) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.unlockVault(password);
+      set({ isUnlocked: true, isLoading: false });
+      await get().loadGroups();
+    } catch (e) {
+      set({ error: String(e), isLoading: false });
+    }
+  },
+
+  lock: async () => {
+    await api.lockVault();
+    set({ isUnlocked: false, items: [], selectedItem: null });
+  },
+
+  loadGroups: async () => {
+    try {
+      const groups = await api.getGroups();
+      set({ groups });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  loadItems: async (groupId) => {
+    try {
+      const items = groupId 
+        ? await api.getItemsByGroup(groupId)
+        : await api.getAllItems();
+      set({ items });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  selectItem: async (id) => {
+    try {
+      const item = await api.getItemDetail(id);
+      set({ selectedItem: item });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  clearSelection: () => set({ selectedItem: null }),
+
+  createGroup: async (name, icon) => {
+    try {
+      await api.createNewGroup(name, icon);
+      await get().loadGroups();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  updateGroup: async (id, name, icon) => {
+    try {
+      await api.updateExistingGroup(id, name, icon);
+      await get().loadGroups();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  deleteGroup: async (id) => {
+    try {
+      await api.deleteExistingGroup(id);
+      await get().loadGroups();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  createItem: async (data) => {
+    try {
+      await api.createNewAccountItem(
+        data.groupId,
+        data.title,
+        data.username,
+        data.password,
+        data.website,
+        data.notes
+      );
+      await get().loadItems();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  updateItem: async (id, data) => {
+    try {
+      await api.updateExistingAccountItem(
+        id,
+        data.title,
+        data.username,
+        data.password,
+        data.website,
+        data.notes
+      );
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  deleteItem: async (id) => {
+    try {
+      await api.deleteExistingItem(id);
+      if (get().selectedItem?.id === id) {
+        set({ selectedItem: null });
+      }
+      await get().loadItems();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  clearError: () => set({ error: null }),
+}));
+```
+
+- [ ] **Step 2: Create UI store**
+
+Create `src/stores/ui.ts`:
+
+```typescript
+import { create } from 'zustand';
+
+interface UIState {
+  selectedGroupId: string | null;
+  searchQuery: string;
+  sortBy: 'name_asc' | 'name_desc' | 'created' | 'updated';
+  isAddItemModalOpen: boolean;
+  isAddGroupModalOpen: boolean;
+  editingGroupId: string | null;
+  editingItemId: string | null;
+  deleteConfirmTarget: { type: 'group' | 'item'; id: string; name: string } | null;
+  
+  setSelectedGroup: (id: string | null) => void;
+  setSearchQuery: (query: string) => void;
+  setSortBy: (sort: UIState['sortBy']) => void;
+  openAddItemModal: () => void;
+  closeAddItemModal: () => void;
+  openAddGroupModal: () => void;
+  closeAddGroupModal: () => void;
+  openEditGroupModal: (id: string) => void;
+  closeEditGroupModal: () => void;
+  openEditItemModal: (id: string) => void;
+  closeEditItemModal: () => void;
+  openDeleteConfirm: (type: 'group' | 'item', id: string, name: string) => void;
+  closeDeleteConfirm: () => void;
+}
+
+export const useUIStore = create<UIState>((set) => ({
+  selectedGroupId: null,
+  searchQuery: '',
+  sortBy: 'name_asc',
+  isAddItemModalOpen: false,
+  isAddGroupModalOpen: false,
+  editingGroupId: null,
+  editingItemId: null,
+  deleteConfirmTarget: null,
+
+  setSelectedGroup: (id) => set({ selectedGroupId: id }),
+  setSearchQuery: (query) => set({ searchQuery: query }),
+  setSortBy: (sort) => set({ sortBy: sort }),
+  openAddItemModal: () => set({ isAddItemModalOpen: true }),
+  closeAddItemModal: () => set({ isAddItemModalOpen: false }),
+  openAddGroupModal: () => set({ isAddGroupModalOpen: true }),
+  closeAddGroupModal: () => set({ isAddGroupModalOpen: false }),
+  openEditGroupModal: (id) => set({ editingGroupId: id }),
+  closeEditGroupModal: () => set({ editingGroupId: null }),
+  openEditItemModal: (id) => set({ editingItemId: id }),
+  closeEditItemModal: () => set({ editingItemId: null }),
+  openDeleteConfirm: (type, id, name) => set({ deleteConfirmTarget: { type, id, name } }),
+  closeDeleteConfirm: () => set({ deleteConfirmTarget: null }),
+}));
+```
+
+- [ ] **Step 3: Commit stores**
+
+```bash
+git add -A
+git commit -m "feat: add Zustand stores for vault and UI state"
+```
+
+### Task 5.4: Create Activity Tracker Hook
+
+**Files:**
+- Create: `src/hooks/useActivityTracker.ts`
+
+- [ ] **Step 1: Create activity tracker hook**
+
+Create `src/hooks/useActivityTracker.ts`:
+
+```typescript
+import { useEffect, useRef } from 'react';
+import { useVaultStore } from '@/stores/vault';
+
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
+export function useActivityTracker() {
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isUnlocked = useVaultStore((s) => s.isUnlocked);
+  const lock = useVaultStore((s) => s.lock);
+
+  useEffect(() => {
+    if (!isUnlocked) return;
+
+    const resetTimer = () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      timerRef.current = setTimeout(() => {
+        lock();
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    const events = ['mousedown', 'keydown', 'touchstart'];
+    events.forEach((event) => {
+      window.addEventListener(event, resetTimer);
+    });
+
+    resetTimer();
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      events.forEach((event) => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [isUnlocked, lock]);
+}
+```
+
+- [ ] **Step 2: Commit activity tracker**
+
+```bash
+git add -A
+git commit -m "feat: add activity tracker hook for auto-lock"
+```
+
+---
+
+## Chunk 6: React Frontend - UI Components
+
+### Task 6.1: Create Base UI Components (Shadcn-style)
+
+**Files:**
+- Create: `src/components/ui/button.tsx`
+- Create: `src/components/ui/input.tsx`
+- Create: `src/components/ui/card.tsx`
+- Create: `src/components/ui/dialog.tsx`
+
+- [ ] **Step 1: Create button component**
+
+Create `src/components/ui/button.tsx`:
+
+```typescript
+import { forwardRef } from 'react';
+import { cn } from '@/lib/utils';
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'default' | 'destructive' | 'outline' | 'ghost';
+  size?: 'default' | 'sm' | 'lg';
+}
+
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'default', size = 'default', ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        className={cn(
+          'inline-flex items-center justify-center rounded-md font-medium transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2',
+          'disabled:pointer-events-none disabled:opacity-50',
+          {
+            'bg-primary-600 text-white hover:bg-primary-700': variant === 'default',
+            'bg-red-600 text-white hover:bg-red-700': variant === 'destructive',
+            'border border-gray-300 bg-white hover:bg-gray-50': variant === 'outline',
+            'hover:bg-gray-100': variant === 'ghost',
+            'h-9 px-4 text-sm': size === 'default',
+            'h-8 px-3 text-xs': size === 'sm',
+            'h-10 px-6 text-base': size === 'lg',
+          },
+          className
+        )}
+        {...props}
+      />
+    );
+  }
+);
+```
+
+- [ ] **Step 2: Create input component**
+
+Create `src/components/ui/input.tsx`:
+
+```typescript
+import { forwardRef } from 'react';
+import { cn } from '@/lib/utils';
+
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+export const Input = forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, ...props }, ref) => {
+    return (
+      <input
+        type={type}
+        className={cn(
+          'flex h-9 w-full rounded-md border border-gray-300 bg-white px-3 py-1 text-sm',
+          'shadow-sm transition-colors',
+          'file:border-0 file:bg-transparent file:text-sm file:font-medium',
+          'placeholder:text-gray-400',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500',
+          'disabled:cursor-not-allowed disabled:opacity-50',
+          className
+        )}
+        ref={ref}
+        {...props}
+      />
+    );
+  }
+);
+```
+
+- [ ] **Step 3: Create card components**
+
+Create `src/components/ui/card.tsx`:
+
+```typescript
+import { cn } from '@/lib/utils';
+
+export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn('rounded-lg border bg-white shadow-sm', className)}
+      {...props}
+    />
+  );
+}
+
+export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('flex flex-col space-y-1.5 p-4', className)} {...props} />;
+}
+
+export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+  return <h3 className={cn('text-lg font-semibold', className)} {...props} />;
+}
+
+export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('p-4 pt-0', className)} {...props} />;
+}
+```
+
+- [ ] **Step 4: Create dialog component**
+
+Create `src/components/ui/dialog.tsx`:
+
+```typescript
+import { cn } from '@/lib/utils';
+
+interface DialogProps {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  children: React.ReactNode;
+}
+
+export function Dialog({ open, onClose, title, children }: DialogProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative z-50 w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+        {title && <h2 className="mb-4 text-lg font-semibold">{title}</h2>}
+        {children}
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 5: Commit base UI components**
+
+```bash
+git add -A
+git commit -m "feat: add base UI components (button, input, card, dialog)"
+```
+
+### Task 6.2: Create Unlock Screen
+
+**Files:**
+- Create: `src/components/unlock/UnlockScreen.tsx`
+- Create: `src/components/unlock/SetupScreen.tsx`
+
+- [ ] **Step 1: Create setup screen for first-run**
+
+Create `src/components/unlock/SetupScreen.tsx`:
+
+```typescript
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useVaultStore } from '@/stores/vault';
+
+export function SetupScreen() {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const initialize = useVaultStore((s) => s.initialize);
+  const isLoading = useVaultStore((s) => s.isLoading);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    await initialize(password);
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-100">
+      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg">
+        <h1 className="mb-2 text-center text-2xl font-bold">SecKeyBox</h1>
+        <p className="mb-6 text-center text-gray-500">Create your master password</p>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Master Password</label>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Confirm Password</label>
+            <Input
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Confirm password"
+            />
+          </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Creating...' : 'Create Vault'}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Create unlock screen**
+
+Create `src/components/unlock/UnlockScreen.tsx`:
+
+```typescript
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useVaultStore } from '@/stores/vault';
+
+export function UnlockScreen() {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const unlock = useVaultStore((s) => s.unlock);
+  const isLoading = useVaultStore((s) => s.isLoading);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    await unlock(password);
+    const storeError = useVaultStore.getState().error;
+    if (storeError) {
+      setError('Invalid password');
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-100">
+      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg">
+        <h1 className="mb-2 text-center text-2xl font-bold">SecKeyBox</h1>
+        <p className="mb-6 text-center text-gray-500">Enter your master password</p>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Master password"
+              autoFocus
+            />
+          </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Unlocking...' : 'Unlock'}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 3: Commit unlock screens**
+
+```bash
+git add -A
+git commit -m "feat: add setup and unlock screens"
+```
+
+### Task 6.3: Create Main Layout Components
+
+**Files:**
+- Create: `src/components/layout/Sidebar.tsx`
+- Create: `src/components/layout/ItemList.tsx`
+- Create: `src/components/layout/DetailPanel.tsx`
+
+- [ ] **Step 1: Create sidebar component**
+
+Create `src/components/layout/Sidebar.tsx`:
+
+```typescript
+import { Plus, Lock, Settings, MoreVertical } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { useVaultStore } from '@/stores/vault';
+import { useUIStore } from '@/stores/ui';
+
+export function Sidebar() {
+  const groups = useVaultStore((s) => s.groups);
+  const items = useVaultStore((s) => s.items);
+  const loadItems = useVaultStore((s) => s.loadItems);
+  const lock = useVaultStore((s) => s.lock);
+  const selectedGroupId = useUIStore((s) => s.selectedGroupId);
+  const searchQuery = useUIStore((s) => s.searchQuery);
+  const setSearchQuery = useUIStore((s) => s.setSearchQuery);
+  const setSelectedGroup = useUIStore((s) => s.setSelectedGroup);
+  const openAddGroupModal = useUIStore((s) => s.openAddGroupModal);
+  const openEditGroupModal = useUIStore((s) => s.openEditGroupModal);
+  const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+
+  const handleSelectGroup = (id: string | null) => {
+    setSelectedGroup(id);
+    loadItems(id || undefined);
+  };
+
+  const filteredItems = items.filter(
+    (item) =>
+      searchQuery === '' ||
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="flex h-full w-60 flex-col border-r bg-gray-50">
+      <div className="p-4">
+        <input
+          type="text"
+          placeholder="Search..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+        />
+      </div>
+      
+      <div className="flex-1 overflow-y-auto px-2">
+        <button
+          onClick={() => handleSelectGroup(null)}
+          className={`w-full rounded-md px-3 py-2 text-left text-sm ${
+            selectedGroupId === null ? 'bg-primary-100 text-primary-700' : 'hover:bg-gray-100'
+          }`}
+        >
+          📁 All Items {searchQuery && `(${filteredItems.length})`}
+        </button>
+        
+        <div className="my-2 border-t" />
+        
+        {groups.map((group) => {
+          const itemCount = group.id.startsWith('built-in-') 
+            ? 0 
+            : items.filter(i => i.group_id === group.id).length;
+          
+          return (
+            <div key={group.id} className="relative group flex items-center">
+              <button
+                onClick={() => handleSelectGroup(group.id)}
+                className={`flex-1 rounded-md px-3 py-2 text-left text-sm ${
+                  selectedGroupId === group.id ? 'bg-primary-100 text-primary-700' : 'hover:bg-gray-100'
+                }`}
+              >
+                {group.icon || '📂'} {group.name}
+              </button>
+              {!group.id.startsWith('built-in-') && (
+                <div className="relative">
+                  <button
+                    onClick={() => setMenuOpenId(menuOpenId === group.id ? null : group.id)}
+                    className="rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </button>
+                  {menuOpenId === group.id && (
+                    <div className="absolute right-0 top-6 z-10 w-24 rounded-md border bg-white shadow-lg">
+                      <button
+                        onClick={() => {
+                          openEditGroupModal(group.id);
+                          setMenuOpenId(null);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100"
+                      >
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => {
+                          openDeleteConfirm('group', group.id, group.name);
+                          setMenuOpenId(null);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-gray-100"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2 w-full justify-start text-gray-500"
+          onClick={openAddGroupModal}
+        >
+          <Plus className="mr-2 h-4 w-4" /> Add Group
+        </Button>
+      </div>
+      
+      <div className="border-t p-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-gray-500"
+          onClick={lock}
+        >
+          <Lock className="mr-2 h-4 w-4" /> Lock
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Create item list component**
+
+Create `src/components/layout/ItemList.tsx`:
+
+```typescript
+import { Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useVaultStore } from '@/stores/vault';
+import { useUIStore } from '@/stores/ui';
+
+export function ItemList() {
+  const items = useVaultStore((s) => s.items);
+  const selectItem = useVaultStore((s) => s.selectItem);
+  const selectedItem = useVaultStore((s) => s.selectedItem);
+  const openAddItemModal = useUIStore((s) => s.openAddItemModal);
+  const searchQuery = useUIStore((s) => s.searchQuery);
+  const sortBy = useUIStore((s) => s.sortBy);
+  const setSortBy = useUIStore((s) => s.setSortBy);
+
+  const filteredAndSortedItems = items
+    .filter((item) =>
+      searchQuery === '' ||
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'name_asc':
+          return a.title.localeCompare(b.title);
+        case 'name_desc':
+          return b.title.localeCompare(a.title);
+        case 'created':
+          return b.created_at - a.created_at;
+        case 'updated':
+          return b.updated_at - a.updated_at;
+        default:
+          return 0;
+      }
+    });
+
+  return (
+    <div className="flex h-full w-80 flex-col border-r bg-white">
+      <div className="flex items-center justify-between border-b p-4">
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as any)}
+          className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+        >
+          <option value="name_asc">Name (A-Z)</option>
+          <option value="name_desc">Name (Z-A)</option>
+          <option value="created">Created (newest)</option>
+          <option value="updated">Modified (newest)</option>
+        </select>
+        <Button size="sm" onClick={openAddItemModal}>
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto">
+        {filteredAndSortedItems.length === 0 ? (
+          <div className="p-4 text-center text-gray-500">No items</div>
+        ) : (
+          filteredAndSortedItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => selectItem(item.id)}
+              className={`w-full border-b p-3 text-left hover:bg-gray-50 ${
+                selectedItem?.id === item.id ? 'bg-primary-50' : ''
+              }`}
+            >
+              <div className="font-medium">{item.title}</div>
+              <div className="text-sm text-gray-500">{item.subtitle}</div>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 3: Create detail panel component**
+
+Create `src/components/layout/DetailPanel.tsx`:
+
+```typescript
+import { Copy, Eye, EyeOff, Edit, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { useVaultStore } from '@/stores/vault';
+import { useUIStore } from '@/stores/ui';
+import { copyToClipboard } from '@/lib/tauri';
+
+export function DetailPanel() {
+  const selectedItem = useVaultStore((s) => s.selectedItem);
+  const deleteItem = useVaultStore((s) => s.deleteItem);
+  const openEditItemModal = useUIStore((s) => s.openEditItemModal);
+  const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm);
+  const [showPassword, setShowPassword] = useState(false);
+
+  if (!selectedItem) {
+    return (
+      <div className="flex h-full flex-1 items-center justify-center bg-gray-50">
+        <p className="text-gray-400">Select an item to view details</p>
+      </div>
+    );
+  }
+
+  const handleCopy = async (text: string) => {
+    await copyToClipboard(text);
+    // Auto-clear clipboard after 30 seconds
+    setTimeout(async () => {
+      await import('@/lib/tauri').then(api => api.clearClipboard());
+    }, 30000);
+  };
+
+  return (
+    <div className="flex h-full flex-1 flex-col bg-white p-6">
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">{selectedItem.title}</h1>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => openEditItemModal(selectedItem.id)}>
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openDeleteConfirm('item', selectedItem.id, selectedItem.title)}
+          >
+            <Trash2 className="h-4 w-4 text-red-500" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-500">Username</label>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{selectedItem.username}</span>
+            <Button variant="ghost" size="sm" onClick={() => handleCopy(selectedItem.username)}>
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-500">Password</label>
+          <div className="flex items-center gap-2">
+            <span className="font-medium">
+              {showPassword ? selectedItem.password : '••••••••'}
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => setShowPassword(!showPassword)}>
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => handleCopy(selectedItem.password)}>
+              <Copy className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {selectedItem.website && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500">Website</label>
+            <a
+              href={selectedItem.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-600 hover:underline"
+            >
+              {selectedItem.website}
+            </a>
+          </div>
+        )}
+
+        {selectedItem.notes && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700">{selectedItem.notes}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 4: Commit layout components**
+
+```bash
+git add -A
+git commit -m "feat: add sidebar, item list, and detail panel components"
+```
+
+### Task 6.4: Create Modal Components
+
+**Files:**
+- Create: `src/components/modals/AddEditItemModal.tsx`
+- Create: `src/components/modals/AddGroupModal.tsx`
+- Create: `src/components/modals/DeleteConfirmModal.tsx`
+
+- [ ] **Step 1: Create add/edit item modal**
+
+Create `src/components/modals/AddEditItemModal.tsx`:
+
+```typescript
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog } from '@/components/ui/dialog';
+import { useVaultStore } from '@/stores/vault';
+import { useUIStore } from '@/stores/ui';
+
+export function AddEditItemModal() {
+  const isOpen = useUIStore((s) => s.isAddItemModalOpen || s.editingItemId !== null);
+  const editingItemId = useUIStore((s) => s.editingItemId);
+  const closeAddItemModal = useUIStore((s) => s.closeAddItemModal);
+  const closeEditItemModal = useUIStore((s) => s.closeEditItemModal);
+  const selectedItem = useVaultStore((s) => s.selectedItem);
+  const groups = useVaultStore((s) => s.groups);
+  const createItem = useVaultStore((s) => s.createItem);
+  const updateItem = useVaultStore((s) => s.updateItem);
+  const selectedGroupId = useUIStore((s) => s.selectedGroupId);
+
+  const [form, setForm] = useState({
+    groupId: '',
+    title: '',
+    username: '',
+    password: '',
+    website: '',
+    notes: '',
+  });
+
+  useEffect(() => {
+    if (editingItemId && selectedItem) {
+      setForm({
+        groupId: selectedItem.group_id,
+        title: selectedItem.title,
+        username: selectedItem.username,
+        password: '',
+        website: selectedItem.website || '',
+        notes: selectedItem.notes || '',
+      });
+    } else {
+      setForm({
+        groupId: selectedGroupId || groups[0]?.id || '',
+        title: '',
+        username: '',
+        password: '',
+        website: '',
+        notes: '',
+      });
+    }
+  }, [editingItemId, selectedItem, selectedGroupId, groups]);
+
+  const handleClose = () => {
+    closeAddItemModal();
+    closeEditItemModal();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingItemId) {
+      await updateItem(editingItemId, {
+        title: form.title,
+        username: form.username,
+        password: form.password || undefined,
+        website: form.website || undefined,
+        notes: form.notes || undefined,
+      });
+    } else {
+      await createItem({
+        groupId: form.groupId,
+        title: form.title,
+        username: form.username,
+        password: form.password,
+        website: form.website || undefined,
+        notes: form.notes || undefined,
+      });
+    }
+    handleClose();
+  };
+
+  return (
+    <Dialog open={isOpen} onClose={handleClose} title={editingItemId ? 'Edit Item' : 'Add Item'}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium">Group</label>
+          <select
+            value={form.groupId}
+            onChange={(e) => setForm({ ...form, groupId: e.target.value })}
+            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            disabled={!!editingItemId}
+          >
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.icon} {g.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Title *</label>
+          <Input
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Username *</label>
+          <Input
+            value={form.username}
+            onChange={(e) => setForm({ ...form, username: e.target.value })}
+            required
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">
+            Password {editingItemId ? '(leave blank to keep)' : '*'}
+          </label>
+          <Input
+            type="password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            required={!editingItemId}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Website</label>
+          <Input
+            value={form.website}
+            onChange={(e) => setForm({ ...form, website: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Notes</label>
+          <textarea
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            rows={3}
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={handleClose}>
+            Cancel
+          </Button>
+          <Button type="submit">{editingItemId ? 'Save' : 'Add'}</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+```
+
+- [ ] **Step 2: Create add group modal**
+
+Create `src/components/modals/AddGroupModal.tsx`:
+
+```typescript
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog } from '@/components/ui/dialog';
+import { useVaultStore } from '@/stores/vault';
+import { useUIStore } from '@/stores/ui';
+
+export function AddGroupModal() {
+  const isOpen = useUIStore((s) => s.isAddGroupModalOpen);
+  const close = useUIStore((s) => s.closeAddGroupModal);
+  const createGroup = useVaultStore((s) => s.createGroup);
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('📂');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await createGroup(name, icon);
+    setName('');
+    setIcon('📂');
+    close();
+  };
+
+  const icons = ['📂', '🔒', '💼', '🏠', '💳', '📧', '🎮', '🛒'];
+
+  return (
+    <Dialog open={isOpen} onClose={close} title="Add Group">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium">Name *</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={50}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Icon</label>
+          <div className="flex gap-2">
+            {icons.map((i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setIcon(i)}
+                className={`rounded p-2 text-xl ${icon === i ? 'bg-primary-100' : 'hover:bg-gray-100'}`}
+              >
+                {i}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={close}>
+            Cancel
+          </Button>
+          <Button type="submit">Add</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+```
+
+- [ ] **Step 3: Create edit group modal**
+
+Create `src/components/modals/EditGroupModal.tsx`:
+
+```typescript
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog } from '@/components/ui/dialog';
+import { useVaultStore } from '@/stores/vault';
+import { useUIStore } from '@/stores/ui';
+
+export function EditGroupModal() {
+  const editingGroupId = useUIStore((s) => s.editingGroupId);
+  const close = useUIStore((s) => s.closeEditGroupModal);
+  const groups = useVaultStore((s) => s.groups);
+  const updateGroup = useVaultStore((s) => s.updateGroup);
+  const [name, setName] = useState('');
+  const [icon, setIcon] = useState('📂');
+
+  const editingGroup = groups.find((g) => g.id === editingGroupId);
+
+  useEffect(() => {
+    if (editingGroup) {
+      setName(editingGroup.name);
+      setIcon(editingGroup.icon || '📂');
+    }
+  }, [editingGroup]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingGroupId) {
+      await updateGroup(editingGroupId, name, icon);
+    }
+    close();
+  };
+
+  const icons = ['📂', '🔒', '💼', '🏠', '💳', '📧', '🎮', '🛒'];
+
+  return (
+    <Dialog open={!!editingGroupId} onClose={close} title="Rename Group">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium">Name *</label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            maxLength={50}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium">Icon</label>
+          <div className="flex gap-2">
+            {icons.map((i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setIcon(i)}
+                className={`rounded p-2 text-xl ${icon === i ? 'bg-primary-100' : 'hover:bg-gray-100'}`}
+              >
+                {i}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={close}>
+            Cancel
+          </Button>
+          <Button type="submit">Save</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+```
+
+- [ ] **Step 4: Create delete confirm modal**
+
+Create `src/components/modals/DeleteConfirmModal.tsx`:
+
+```typescript
+import { Button } from '@/components/ui/button';
+import { Dialog } from '@/components/ui/dialog';
+import { useVaultStore } from '@/stores/vault';
+import { useUIStore } from '@/stores/ui';
+
+export function DeleteConfirmModal() {
+  const target = useUIStore((s) => s.deleteConfirmTarget);
+  const close = useUIStore((s) => s.closeDeleteConfirm);
+  const deleteGroup = useVaultStore((s) => s.deleteGroup);
+  const deleteItem = useVaultStore((s) => s.deleteItem);
+  const items = useVaultStore((s) => s.items);
+
+  if (!target) return null;
+
+  const itemCount = target.type === 'group' 
+    ? items.filter((i) => i.group_id === target.id).length 
+    : 0;
+
+  const handleDelete = async () => {
+    if (target.type === 'group') {
+      await deleteGroup(target.id);
+    } else {
+      await deleteItem(target.id);
+    }
+    close();
+  };
+
+  return (
+    <Dialog open={!!target} onClose={close} title={`Delete ${target.type}?`}>
+      <p className="mb-4 text-gray-600">
+        Are you sure you want to delete "{target.name}"?
+        {itemCount > 0 && (
+          <span className="block mt-2 font-medium text-red-600">
+            This will permanently delete {itemCount} item{itemCount !== 1 ? 's' : ''} in this group.
+          </span>
+        )}
+      </p>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={close}>
+          Cancel
+        </Button>
+        <Button variant="destructive" onClick={handleDelete}>
+          Delete
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+```
+
+- [ ] **Step 5: Commit modal components**
+
+```bash
+git add -A
+git commit -m "feat: add modal components (add/edit item, add/edit group, delete confirm)"
+```
+
+---
+
+## Chunk 7: Integration & Final Setup
+
+### Task 7.1: Update App.tsx
+
+**Files:**
+- Modify: `src/App.tsx`
+
+- [ ] **Step 1: Update App.tsx with full integration**
+
+Update `src/App.tsx`:
+
+```typescript
+import { useEffect } from 'react';
+import { useVaultStore } from '@/stores/vault';
+import { useActivityTracker } from '@/hooks/useActivityTracker';
+import { SetupScreen } from '@/components/unlock/SetupScreen';
+import { UnlockScreen } from '@/components/unlock/UnlockScreen';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { ItemList } from '@/components/layout/ItemList';
+import { DetailPanel } from '@/components/layout/DetailPanel';
+import { AddEditItemModal } from '@/components/modals/AddEditItemModal';
+import { AddGroupModal } from '@/components/modals/AddGroupModal';
+import { EditGroupModal } from '@/components/modals/EditGroupModal';
+import { DeleteConfirmModal } from '@/components/modals/DeleteConfirmModal';
+
+function MainApp() {
+  useActivityTracker();
+  const loadItems = useVaultStore((s) => s.loadItems);
+
+  useEffect(() => {
+    loadItems();
+  }, [loadItems]);
+
+  return (
+    <div className="flex h-screen">
+      <Sidebar />
+      <ItemList />
+      <DetailPanel />
+      <AddEditItemModal />
+      <AddGroupModal />
+      <EditGroupModal />
+      <DeleteConfirmModal />
+    </div>
+  );
+}
+
+function App() {
+  const isInitialized = useVaultStore((s) => s.isInitialized);
+  const isUnlocked = useVaultStore((s) => s.isUnlocked);
+  const checkInitialized = useVaultStore((s) => s.checkInitialized);
+
+  useEffect(() => {
+    checkInitialized();
+  }, [checkInitialized]);
+
+  if (isInitialized === null) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-100">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (!isInitialized) {
+    return <SetupScreen />;
+  }
+
+  if (!isUnlocked) {
+    return <UnlockScreen />;
+  }
+
+  return <MainApp />;
+}
+
+export default App;
+```
+
+- [ ] **Step 2: Commit App.tsx**
+
+```bash
+git add -A
+git commit -m "feat: integrate all components in App.tsx"
+```
+
+### Task 7.2: Build and Test
+
+- [ ] **Step 1: Verify frontend builds**
+
+Run: `npm run build`
+Expected: Build completes without errors
+
+- [ ] **Step 2: Verify Tauri app builds**
+
+Run: `npm run tauri build`
+Expected: Build completes, produces executable in `src-tauri/target/release/`
+
+- [ ] **Step 3: Test complete flow manually**
+
+1. Run `npm run tauri dev`
+2. Verify setup screen appears on first run
+3. Create master password
+4. Verify main interface loads
+5. Add a new group
+6. Add a new account item
+7. View item details
+8. Edit item
+9. Delete item
+10. Lock vault
+11. Unlock vault
+12. Verify auto-lock after 5 minutes
+
+- [ ] **Step 4: Final commit**
+
+```bash
+git add -A
+git commit -m "feat: complete SecKeyBox Phase 1 MVP implementation"
+```
+
+---
+
+## Summary
+
+This implementation plan covers Phase 1 MVP of SecKeyBox, including:
+
+1. **Project Setup** - Tauri 2.x + React 18 + TypeScript + Tailwind CSS
+2. **Rust Backend** - Crypto (Argon2id, AES-256-GCM), Database (SQLite), Commands
+3. **React Frontend** - Stores, Components, Modals
+4. **Integration** - Full app assembly and testing
+
+**Total estimated implementation time:** 4-6 hours for an experienced developer.
