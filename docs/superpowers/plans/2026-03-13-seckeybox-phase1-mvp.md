@@ -102,6 +102,29 @@ SecKeyBox/
 Run: `git init`
 Expected: Git repository initialized
 
+Create `.gitignore`:
+
+```
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+target/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+```
+
 - [ ] **Step 2: Initialize npm project with package.json**
 
 Create `package.json`:
@@ -484,16 +507,11 @@ pub fn run() {
 }
 ```
 
-- [ ] **Step 7: Generate Tauri icons**
+- [ ] **Step 7: Skip icon generation (use defaults)**
 
-Run: `npx tauri icon` 
-Expected: Icons generated in `src-tauri/icons/`
+Skip icon generation for now - Tauri will use default icons. Custom icons can be added later with `npx tauri icon <source-image.png>`.
 
-If command fails, create placeholder icons manually:
-- Create empty file `src-tauri/icons/icon.ico`
-- Create empty file `src-tauri/icons/icon.png`
-
-Note: Placeholder icons will cause the app to use default Tauri icons.
+Note: To add custom icons in future, prepare a 1024x1024 PNG and run `npx tauri icon path/to/icon.png`
 
 - [ ] **Step 8: Test Tauri dev mode**
 
