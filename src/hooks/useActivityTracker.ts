@@ -4,7 +4,7 @@ import { useVaultStore } from '@/stores/vault';
 const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 export function useActivityTracker() {
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isUnlocked = useVaultStore((s) => s.isUnlocked);
   const lock = useVaultStore((s) => s.lock);
 

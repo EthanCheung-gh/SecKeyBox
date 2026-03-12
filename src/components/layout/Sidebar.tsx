@@ -6,7 +6,6 @@ import { useUIStore } from '@/stores/ui';
 
 export function Sidebar() {
   const groups = useVaultStore((s) => s.groups);
-  const items = useVaultStore((s) => s.items);
   const loadItems = useVaultStore((s) => s.loadItems);
   const lock = useVaultStore((s) => s.lock);
   const selectedGroupId = useUIStore((s) => s.selectedGroupId);
@@ -48,8 +47,6 @@ export function Sidebar() {
         <div className="my-2 border-t" />
         
         {groups.map((group) => {
-          const itemCount = items.filter(i => i.group_id === group.id).length;
-          
           return (
             <div key={group.id} className="relative group flex items-center">
               <button

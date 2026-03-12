@@ -7,7 +7,6 @@ import { copyToClipboard } from '@/lib/tauri';
 
 export function DetailPanel() {
   const selectedItem = useVaultStore((s) => s.selectedItem);
-  const deleteItem = useVaultStore((s) => s.deleteItem);
   const openEditItemModal = useUIStore((s) => s.openEditItemModal);
   const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm);
   const [showPassword, setShowPassword] = useState(false);
