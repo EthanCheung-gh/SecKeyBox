@@ -168,13 +168,46 @@ CREATE TABLE vault_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
--- Stores: 'password_hash' = Argon2id hash, 'password_salt' = random salt
+-- Stores:
+-- 'password_hash' = Argon2id hash
+-- 'password_salt' = random salt
+-- 'failed_attempts' = current failed attempt count (reset on success)
+-- 'lockout_until' = timestamp when lockout expires (null if not locked)
 
 -- Indexes
 CREATE INDEX idx_items_group ON items(group_id);
 CREATE INDEX idx_items_type ON items(type);
 CREATE INDEX idx_items_favorite ON items(is_favorite);
 ```
+
+### Built-in Groups
+
+Built-in categories (Accounts, API Keys, Environment Variables) are **seed data** inserted on first-run:
+
+```sql
+INSERT INTO groups (id, name, icon, sort_order) VALUES
+    ('built-in-accounts', 'Accounts', '🔑', 0),
+    ('built-in-api-keys', 'API Keys', '🔧', 1),
+    ('built-in-env-vars', 'Environment Variables', '📦', 2);
+```
+
+- These groups can be renamed but **cannot be deleted**
+- Custom groups are inserted after built-in groups (sort_order > 2)
+- Frontend checks `id LIKE 'built-in-%'` to disable delete button
+
+### Field Validation Limits
+
+| Field | Max Length | Notes |
+|-------|------------|-------|
+| Group name | 50 chars | |
+| Item title | 100 chars | |
+| Username | 100 chars | |
+| Password | 1000 chars | Supports long passphrases |
+| Website URL | 500 chars | |
+| Notes | 5000 chars | |
+| API Key value | 10000 chars | Supports long tokens |
+| Env var key | 100 chars | |
+| Env var value | 5000 chars | |
 
 ## Tauri IPC Interface
 
@@ -209,10 +242,20 @@ fn is_vault_unlocked() -> bool;
 fn get_all_groups() -> Result<Vec<Group>, String>;
 
 #[tauri::command]
-fn create_group(name: String, icon: Option<String>, parent_id: Option<String>) -> Result<Group, String>;
+fn create_group(
+    name: String, 
+    icon: Option<String>, 
+    parent_id: Option<String>,
+    sort_order: Option<i32>
+) -> Result<Group, String>;
 
 #[tauri::command]
-fn update_group(id: String, name: String, icon: Option<String>) -> Result<(), String>;
+fn update_group(
+    id: String, 
+    name: String, 
+    icon: Option<String>,
+    sort_order: Option<i32>
+) -> Result<(), String>;
 
 #[tauri::command]
 fn delete_group(id: String) -> Result<(), String>;  // Cascades to items
@@ -255,6 +298,48 @@ fn delete_item(id: String) -> Result<(), String>;
 
 #[tauri::command]
 fn toggle_favorite(id: String) -> Result<(), String>;
+```
+
+### Item Commands (Phase 2)
+
+```rust
+// API Key items - implemented in Phase 2
+#[tauri::command]
+fn create_api_key_item(
+    group_id: String,
+    title: String,
+    key_name: String,
+    key_value: String,
+    endpoint: Option<String>,
+    notes: Option<String>
+) -> Result<String, String>;
+
+#[tauri::command]
+fn update_api_key_item(
+    id: String,
+    title: String,
+    key_name: String,
+    key_value: Option<String>,
+    endpoint: Option<String>,
+    notes: Option<String>
+) -> Result<(), String>;
+
+// Environment variable items - implemented in Phase 2
+#[tauri::command]
+fn create_env_var_item(
+    group_id: String,
+    title: String,
+    variables: Vec<{ key: String, value: String }>,
+    notes: Option<String>
+) -> Result<String, String>;
+
+#[tauri::command]
+fn update_env_var_item(
+    id: String,
+    title: String,
+    variables: Vec<{ key: String, value: String }>,
+    notes: Option<String>
+) -> Result<(), String>;
 ```
 
 ### Clipboard Commands
@@ -325,6 +410,7 @@ fn clear_clipboard() -> Result<(), String>;
 Delete "Work"?
 This will permanently delete 12 items in this group.
 [Cancel] [Delete]
+```
 
 ## Security Design
 
@@ -359,7 +445,37 @@ User enters master password
 | Sensitive Data Encryption | AES-256-GCM with unique nonce per field |
 | Clipboard Security | Auto-clear after 30 seconds |
 | Auto-lock | Lock after 5 minutes inactivity |
-| Brute-force Protection | Argon2id slow hash + attempt limiting |
+| Brute-force Protection | 5 failed attempts → 30 second lockout |
+
+### Master Password Requirements
+
+- Minimum length: 8 characters
+- Recommended: 12+ characters with mixed case, numbers, symbols
+- No maximum length limit
+- Validated on both setup and unlock
+
+### Auto-Lock Implementation
+
+**Inactivity Detection:**
+- Frontend tracks user activity: mouse movement, keyboard input, clicks
+- Timer resets on any activity
+- When 5 minutes pass with no activity → call `lock_vault()`
+
+**Lock Triggers:**
+1. Manual: User clicks "Lock" button or uses keyboard shortcut
+2. Inactivity: 5 minutes no user input
+3. System: App window loses focus for 60+ seconds (configurable)
+
+### Brute-Force Protection
+
+**Implementation:**
+- Attempt counter stored in `vault_config` table: `failed_attempts` key
+- Counter incremented on each failed unlock
+- Counter reset on successful unlock
+- After 5 failed attempts:
+  - Show lockout message with countdown
+  - Disable unlock button for 30 seconds
+  - Clear counter after lockout expires
 
 ### Windows Hello Integration (Phase 2)
 
@@ -405,6 +521,7 @@ async function copyWithAutoClear(text: string) {
   
   showToast('Copied to clipboard (clears in 30s)');
 }
+```
 
 ## UI Design
 
@@ -503,17 +620,18 @@ SecKeyBox/
 │   │   ├── unlock/
 │   │   │   └── UnlockScreen.tsx  # Unlock page
 │   │   └── modals/
-│   │       ├── AddItemModal.tsx
+│   │       ├── AddItemModal.tsx  # Add new item (handles both add/edit)
 │   │       └── EditGroupModal.tsx
 │   ├── pages/
 │   │   └── Main.tsx
 │   ├── stores/                   # Zustand state
-│   │   ├── vault.ts              # Vault state
-│   │   ├── settings.ts           # Settings state
-│   │   └── ui.ts                 # UI state
+│   │   ├── vault.ts              # Vault state (locked/unlocked, master key)
+│   │   └── ui.ts                 # UI state (selected item, modals)
+│   ├── hooks/
+│   │   └── useActivityTracker.ts # Auto-lock inactivity detection
 │   ├── lib/
 │   │   ├── tauri.ts              # Tauri IPC wrapper
-│   │   └── crypto.ts             # Frontend crypto helpers
+│   │   └── utils.ts              # Utility functions
 │   └── App.tsx
 ├── src-tauri/                    # Rust backend
 │   ├── src/
@@ -532,6 +650,8 @@ SecKeyBox/
 ├── package.json
 └── tauri.conf.json
 ```
+
+**Note:** `settings.ts` store and Settings page moved to Phase 3 (import/export, theme toggle).
 
 ## Development Phases
 
