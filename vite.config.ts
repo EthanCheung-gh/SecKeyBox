@@ -1,12 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': resolve(__dirname, './src'),
     },
   },
   clearScreen: false,
@@ -15,6 +15,14 @@ export default defineConfig({
     strictPort: true,
     watch: {
       ignored: ['**/src-tauri/**'],
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        'quick-search': resolve(__dirname, 'quick-search.html'),
+      },
     },
   },
 });
