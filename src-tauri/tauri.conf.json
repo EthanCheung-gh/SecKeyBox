@@ -13,6 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "label": "main",
         "title": "SecKeyBox",
         "width": 1200,
         "height": 800,
@@ -23,6 +24,19 @@
         "decorations": true,
         "transparent": false,
         "center": true
+      },
+      {
+        "label": "quick-search",
+        "title": "Quick Search",
+        "url": "quick-search.html",
+        "width": 400,
+        "height": 300,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": true,
+        "visible": false
       }
     ],
     "security": {

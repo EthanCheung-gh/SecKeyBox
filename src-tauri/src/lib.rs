@@ -16,10 +16,12 @@ pub use db::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use commands::*;
-    use tauri::Manager;
+    use tauri::{Listener, Manager};
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             let db_path = get_db_path(&app.handle());
             let conn = if db_path.exists() {
@@ -30,6 +32,23 @@ pub fn run() {
             
             app.manage(DbConnection(std::sync::Mutex::new(conn)));
             app.manage(VaultState::new());
+
+            // Register Ctrl+Shift+Space global shortcut
+            let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
+            app.global_shortcut().register(shortcut).expect("Failed to register global shortcut");
+
+            // Listen for shortcut press
+            let app_handle = app.handle().clone();
+            app.listen("global-shortcut://shortcut", move |_event| {
+                if let Some(window) = app_handle.get_webview_window("quick-search") {
+                    if window.is_visible().unwrap_or(false) {
+                        let _ = window.hide();
+                    } else {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            });
             
             Ok(())
         })
@@ -56,6 +75,7 @@ pub fn run() {
             toggle_item_favorite,
             copy_to_clipboard,
             clear_clipboard,
+            search_items,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
