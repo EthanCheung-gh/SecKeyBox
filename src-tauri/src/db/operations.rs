@@ -55,6 +55,8 @@ pub enum ItemDetail {
     Account(AccountItemDetail),
     #[serde(rename = "api_key")]
     ApiKey(ApiKeyItemDetail),
+    #[serde(rename = "env_var")]
+    EnvVar(EnvVarItemDetail),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,6 +73,25 @@ pub struct ApiKeyItemDetail {
     pub endpoint: Option<String>,
     pub auth_method: Option<String>,
     pub rotation_date: Option<i64>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvVarPair {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvVarItemDetail {
+    pub id: String,
+    pub group_id: String,
+    pub title: String,
+    pub icon: Option<String>,
+    pub is_favorite: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub variables: Vec<EnvVarPair>,
     pub notes: Option<String>,
 }
 
@@ -218,11 +239,12 @@ pub fn get_all_items(conn: &Connection) -> Result<Vec<ItemSummary>> {
     let mut stmt = conn
         .prepare(
             "SELECT i.id, i.title, 
-                COALESCE(a.username, ak.key_name, '') as subtitle,
+                COALESCE(a.username, ak.key_name, ev.key, '') as subtitle,
                 i.icon, i.type, i.is_favorite, i.group_id, i.created_at, i.updated_at 
              FROM items i 
              LEFT JOIN account_items a ON i.id = a.item_id 
              LEFT JOIN api_key_items ak ON i.id = ak.item_id 
+             LEFT JOIN env_var_items ev ON i.id = ev.item_id AND ev.sort_order = 0
              ORDER BY i.title",
         )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
@@ -252,11 +274,12 @@ pub fn get_items_by_group(conn: &Connection, group_id: &str) -> Result<Vec<ItemS
     let mut stmt = conn
         .prepare(
             "SELECT i.id, i.title, 
-                COALESCE(a.username, ak.key_name, '') as subtitle,
+                COALESCE(a.username, ak.key_name, ev.key, '') as subtitle,
                 i.icon, i.type, i.is_favorite, i.group_id, i.created_at, i.updated_at 
              FROM items i 
              LEFT JOIN account_items a ON i.id = a.item_id 
              LEFT JOIN api_key_items ak ON i.id = ak.item_id 
+             LEFT JOIN env_var_items ev ON i.id = ev.item_id AND ev.sort_order = 0
              WHERE i.group_id = ?1
              ORDER BY i.title",
         )
@@ -546,6 +569,159 @@ pub fn toggle_favorite(conn: &Connection, id: &str) -> Result<()> {
         [id],
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    Ok(())
+}
+
+pub fn get_env_var_item_detail(
+    conn: &Connection,
+    id: &str,
+    key: &[u8; 32],
+) -> Result<EnvVarItemDetail> {
+    let item: (String, String, String, Option<String>, bool, i64, i64) = conn
+        .query_row(
+            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at 
+             FROM items WHERE id = ?1",
+            [id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get::<_, i32>(4)? != 0,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
+            },
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    let notes: Option<String> = conn
+        .query_row(
+            "SELECT notes FROM env_var_items WHERE item_id = ?1 LIMIT 1",
+            [id],
+            |row| row.get(0),
+        )
+        .unwrap_or(None);
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT key, value_encrypted, value_nonce FROM env_var_items 
+             WHERE item_id = ?1 ORDER BY sort_order",
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    let variables = stmt
+        .query_map([id], |row| {
+            let var_key: String = row.get(0)?;
+            let value_encrypted: Vec<u8> = row.get(1)?;
+            let nonce_bytes: Vec<u8> = row.get(2)?;
+            let mut nonce = [0u8; 12];
+            nonce.copy_from_slice(&nonce_bytes);
+
+            let decrypted = crate::crypto::decrypt(key, &nonce, &value_encrypted)
+                .map_err(|_| rusqlite::Error::InvalidQuery)?;
+
+            Ok(EnvVarPair {
+                key: var_key,
+                value: String::from_utf8(decrypted).map_err(|_| rusqlite::Error::InvalidQuery)?,
+            })
+        })
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    Ok(EnvVarItemDetail {
+        id: item.0,
+        group_id: item.1,
+        title: item.2,
+        icon: item.3,
+        is_favorite: item.4,
+        created_at: item.5,
+        updated_at: item.6,
+        variables,
+        notes,
+    })
+}
+
+pub fn create_env_var_item(
+    conn: &Connection,
+    group_id: &str,
+    title: &str,
+    variables: &[(String, String)],
+    notes: Option<&str>,
+    key: &[u8; 32],
+) -> Result<String> {
+    let id = Uuid::new_v4().to_string();
+    let now = chrono_timestamp();
+
+    conn.execute(
+        "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at) 
+         VALUES (?1, ?2, 'env_var', ?3, NULL, 0, ?4, ?5)",
+        params![id, group_id, title, now, now],
+    )
+    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    for (i, (var_key, var_value)) in variables.iter().enumerate() {
+        let encrypted = crate::crypto::encrypt(key, var_value.as_bytes())
+            .map_err(|e| VaultError::CryptoError(e.to_string()))?;
+
+        conn.execute(
+            "INSERT INTO env_var_items (item_id, key, value_encrypted, value_nonce, sort_order, notes) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                id,
+                var_key,
+                encrypted.ciphertext.to_vec(),
+                encrypted.nonce.to_vec(),
+                i as i32,
+                notes
+            ],
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    Ok(id)
+}
+
+pub fn update_env_var_item(
+    conn: &Connection,
+    id: &str,
+    title: &str,
+    variables: &[(String, String)],
+    notes: Option<&str>,
+    key: &[u8; 32],
+) -> Result<()> {
+    let now = chrono_timestamp();
+
+    conn.execute(
+        "UPDATE items SET title = ?1, updated_at = ?2 WHERE id = ?3",
+        params![title, now, id],
+    )
+    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    conn.execute("DELETE FROM env_var_items WHERE item_id = ?1", params![id])
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    for (i, (var_key, var_value)) in variables.iter().enumerate() {
+        let encrypted = crate::crypto::encrypt(key, var_value.as_bytes())
+            .map_err(|e| VaultError::CryptoError(e.to_string()))?;
+
+        conn.execute(
+            "INSERT INTO env_var_items (item_id, key, value_encrypted, value_nonce, sort_order, notes) 
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                id,
+                var_key,
+                encrypted.ciphertext.to_vec(),
+                encrypted.nonce.to_vec(),
+                i as i32,
+                notes
+            ],
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    }
+
     Ok(())
 }
 
