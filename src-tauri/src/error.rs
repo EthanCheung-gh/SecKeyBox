@@ -1,6 +1,7 @@
+use serde::Serialize;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Serialize)]
 pub enum VaultError {
     #[error("Invalid password")]
     InvalidPassword,

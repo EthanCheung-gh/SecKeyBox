@@ -1,4 +1,4 @@
-use tauri::Manager;
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use crate::error::{Result, VaultError};
 
 #[tauri::command]

@@ -39,10 +39,10 @@ pub fn derive_key(password: &str, salt: Option<&str>) -> Result<DerivedKey> {
         .hash_password(password.as_bytes(), &salt)
         .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
-    let key_bytes = hash
+    let hash_output = hash
         .hash
-        .ok_or_else(|| VaultError::CryptoError("Failed to generate hash".to_string()))?
-        .as_bytes();
+        .ok_or_else(|| VaultError::CryptoError("Failed to generate hash".to_string()))?;
+    let key_bytes = hash_output.as_bytes();
 
     let mut key = [0u8; 32];
     key.copy_from_slice(&key_bytes[..32]);
@@ -55,8 +55,8 @@ pub fn derive_key(password: &str, salt: Option<&str>) -> Result<DerivedKey> {
 }
 
 pub fn verify_password(password: &str, stored_hash: &str) -> Result<bool> {
-    let parsed_hash = PasswordHash::new(stored_hash)
-        .map_err(|e| VaultError::CryptoError(e.to_string()))?;
+    let parsed_hash =
+        PasswordHash::new(stored_hash).map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
     let argon2 = Argon2::new(
         argon2::Algorithm::Argon2id,

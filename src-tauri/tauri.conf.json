@@ -29,9 +29,5 @@
       "csp": null
     }
   },
-  "plugins": {
-    "clipboard-manager": {
-      "all": true
-    }
-  }
+  "plugins": {}
 }
