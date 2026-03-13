@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog } from '@/components/ui/dialog';
+import { PasswordStrength } from '@/components/ui/password-strength';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 import type { EnvVarPair } from '@/types';
@@ -221,6 +222,7 @@ export function AddEditItemModal() {
           onChange={(e) => setAccountForm({ ...accountForm, password: e.target.value })}
           required={!isEditing}
         />
+        <PasswordStrength password={accountForm.password} />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium">Website</label>
