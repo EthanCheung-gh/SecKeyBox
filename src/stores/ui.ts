@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 interface UIState {
   selectedGroupId: string | null;
+  showFavoritesOnly: boolean;
   searchQuery: string;
   sortBy: 'name_asc' | 'name_desc' | 'created' | 'updated';
   isAddItemModalOpen: boolean;
@@ -12,6 +13,7 @@ interface UIState {
   newItemType: 'account' | 'api_key' | 'env_var';
   
   setSelectedGroup: (id: string | null) => void;
+  setShowFavoritesOnly: (show: boolean) => void;
   setSearchQuery: (query: string) => void;
   setSortBy: (sort: UIState['sortBy']) => void;
   openAddItemModal: () => void;
@@ -29,6 +31,7 @@ interface UIState {
 
 export const useUIStore = create<UIState>((set) => ({
   selectedGroupId: null,
+  showFavoritesOnly: false,
   searchQuery: '',
   sortBy: 'name_asc',
   isAddItemModalOpen: false,
@@ -38,7 +41,8 @@ export const useUIStore = create<UIState>((set) => ({
   deleteConfirmTarget: null,
   newItemType: 'account',
 
-  setSelectedGroup: (id) => set({ selectedGroupId: id }),
+  setSelectedGroup: (id) => set({ selectedGroupId: id, showFavoritesOnly: false }),
+  setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show, selectedGroupId: null }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setSortBy: (sort) => set({ sortBy: sort }),
   openAddItemModal: () => set({ isAddItemModalOpen: true }),

@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Plus, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
@@ -11,13 +11,17 @@ export function ItemList() {
   const searchQuery = useUIStore((s) => s.searchQuery);
   const sortBy = useUIStore((s) => s.sortBy);
   const setSortBy = useUIStore((s) => s.setSortBy);
+  const showFavoritesOnly = useUIStore((s) => s.showFavoritesOnly);
 
   const filteredAndSortedItems = items
-    .filter((item) =>
-      searchQuery === '' ||
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    .filter((item) => {
+      if (showFavoritesOnly && !item.is_favorite) return false;
+      if (searchQuery === '') return true;
+      return (
+        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    })
     .sort((a, b) => {
       switch (sortBy) {
         case 'name_asc':
@@ -53,7 +57,9 @@ export function ItemList() {
       
       <div className="flex-1 overflow-y-auto">
         {filteredAndSortedItems.length === 0 ? (
-          <div className="p-4 text-center text-gray-500">No items</div>
+          <div className="p-4 text-center text-gray-500">
+            {showFavoritesOnly ? 'No favorite items' : 'No items'}
+          </div>
         ) : (
           filteredAndSortedItems.map((item) => (
             <button
@@ -63,7 +69,10 @@ export function ItemList() {
                 selectedItem?.id === item.id ? 'bg-primary-50' : ''
               }`}
             >
-              <div className="font-medium">{item.title}</div>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{item.title}</span>
+                {item.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
+              </div>
               <div className="text-sm text-gray-500">{item.subtitle}</div>
             </button>
           ))

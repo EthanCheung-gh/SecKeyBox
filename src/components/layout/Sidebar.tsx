@@ -9,9 +9,11 @@ export function Sidebar() {
   const loadItems = useVaultStore((s) => s.loadItems);
   const lock = useVaultStore((s) => s.lock);
   const selectedGroupId = useUIStore((s) => s.selectedGroupId);
+  const showFavoritesOnly = useUIStore((s) => s.showFavoritesOnly);
   const searchQuery = useUIStore((s) => s.searchQuery);
   const setSearchQuery = useUIStore((s) => s.setSearchQuery);
   const setSelectedGroup = useUIStore((s) => s.setSelectedGroup);
+  const setShowFavoritesOnly = useUIStore((s) => s.setShowFavoritesOnly);
   const openAddGroupModal = useUIStore((s) => s.openAddGroupModal);
   const openEditGroupModal = useUIStore((s) => s.openEditGroupModal);
   const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm);
@@ -20,6 +22,11 @@ export function Sidebar() {
   const handleSelectGroup = (id: string | null) => {
     setSelectedGroup(id);
     loadItems(id || undefined);
+  };
+
+  const handleSelectFavorites = () => {
+    setShowFavoritesOnly(true);
+    loadItems(undefined);
   };
 
   return (
@@ -38,10 +45,19 @@ export function Sidebar() {
         <button
           onClick={() => handleSelectGroup(null)}
           className={`w-full rounded-md px-3 py-2 text-left text-sm ${
-            selectedGroupId === null ? 'bg-primary-100 text-primary-700' : 'hover:bg-gray-100'
+            selectedGroupId === null && !showFavoritesOnly ? 'bg-primary-100 text-primary-700' : 'hover:bg-gray-100'
           }`}
         >
           📁 All Items
+        </button>
+        
+        <button
+          onClick={handleSelectFavorites}
+          className={`w-full rounded-md px-3 py-2 text-left text-sm ${
+            showFavoritesOnly ? 'bg-primary-100 text-primary-700' : 'hover:bg-gray-100'
+          }`}
+        >
+          ⭐ Favorites
         </button>
         
         <div className="my-2 border-t" />

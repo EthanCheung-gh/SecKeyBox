@@ -66,6 +66,7 @@ interface VaultState {
     variables: EnvVarPair[];
     notes?: string;
   }) => Promise<void>;
+  toggleItemFavorite: (id: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -262,6 +263,18 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       await api.updateExistingEnvVarItem(
         id, data.title, data.variables, data.notes
       );
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  toggleItemFavorite: async (id) => {
+    try {
+      await api.toggleItemFavorite(id);
       await get().loadItems();
       if (get().selectedItem?.id === id) {
         await get().selectItem(id);

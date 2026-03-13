@@ -1,4 +1,4 @@
-import { Copy, Eye, EyeOff, Edit, Trash2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, Edit, Trash2, Star } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useVaultStore } from '@/stores/vault';
@@ -9,6 +9,7 @@ import type { AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail } from '@/ty
 
 export function DetailPanel() {
   const selectedItem = useVaultStore((s) => s.selectedItem);
+  const toggleItemFavorite = useVaultStore((s) => s.toggleItemFavorite);
   const openEditItemModal = useUIStore((s) => s.openEditItemModal);
   const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm);
   const [showPassword, setShowPassword] = useState(false);
@@ -226,6 +227,13 @@ export function DetailPanel() {
           <span className="text-sm text-gray-500 capitalize">{selectedItem.type.replace('_', ' ')}</span>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => toggleItemFavorite(selectedItem.id)}
+          >
+            <Star className={`h-4 w-4 ${selectedItem.is_favorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+          </Button>
           <Button variant="outline" size="sm" onClick={() => openEditItemModal(selectedItem.id)}>
             <Edit className="h-4 w-4" />
           </Button>
