@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useVaultStore } from '@/stores/vault';
 import { useActivityTracker } from '@/hooks/useActivityTracker';
 import { SetupScreen } from '@/components/unlock/SetupScreen';
@@ -39,24 +38,32 @@ function App() {
   const checkInitialized = useVaultStore((s) => s.checkInitialized);
 
   useEffect(() => {
-    checkInitialized();
+    console.log('App: calling checkInitialized');
+    checkInitialized()
+      .then(() => console.log('App: checkInitialized done, isInitialized =', useVaultStore.getState().isInitialized))
+      .catch((e) => console.error('App: checkInitialized error', e));
   }, [checkInitialized]);
 
-  useEffect(() => {
-    if (isInitialized !== null) {
-      getCurrentWindow().show();
-    }
-  }, [isInitialized]);
+  console.log('App render:', { isInitialized, isUnlocked });
 
   if (isInitialized === null) {
-    return null;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!isInitialized) {
+    console.log('App: showing SetupScreen');
     return <SetupScreen />;
   }
 
   if (!isUnlocked) {
+    console.log('App: showing UnlockScreen');
     return <UnlockScreen />;
   }
 

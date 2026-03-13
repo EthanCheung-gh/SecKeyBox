@@ -42,7 +42,9 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             key_value_encrypted BLOB NOT NULL,
             key_value_nonce BLOB NOT NULL,
             endpoint TEXT,
-            notes TEXT
+            auth_method TEXT,
+            notes TEXT,
+            rotation_date INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS env_var_items (
@@ -51,6 +53,7 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             value_encrypted BLOB NOT NULL,
             value_nonce BLOB NOT NULL,
             sort_order INTEGER DEFAULT 0,
+            notes TEXT,
             PRIMARY KEY (item_id, key)
         );
 
@@ -74,17 +77,46 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
 pub fn run_migrations(conn: &Connection) -> Result<()> {
     let version = get_schema_version(conn)?;
 
-    if version < 2 {
-        conn.execute_batch(
-            "ALTER TABLE api_key_items ADD COLUMN auth_method TEXT;
-             ALTER TABLE api_key_items ADD COLUMN rotation_date INTEGER;",
-        )
-        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    // Already at latest version, nothing to migrate
+    if version >= SCHEMA_VERSION {
+        return Ok(());
     }
 
+    // Migration from version 0 or 1 to 2
+    if version < 2 {
+        // Check if auth_method column exists
+        let has_auth_method: std::result::Result<i32, _> = conn.query_row(
+            "SELECT 1 FROM pragma_table_info('api_key_items') WHERE name='auth_method'",
+            [],
+            |_| Ok(1),
+        );
+        if has_auth_method.is_err() {
+            let _ = conn.execute("ALTER TABLE api_key_items ADD COLUMN auth_method TEXT", []);
+        }
+
+        let has_rotation_date: std::result::Result<i32, _> = conn.query_row(
+            "SELECT 1 FROM pragma_table_info('api_key_items') WHERE name='rotation_date'",
+            [],
+            |_| Ok(1),
+        );
+        if has_rotation_date.is_err() {
+            let _ = conn.execute(
+                "ALTER TABLE api_key_items ADD COLUMN rotation_date INTEGER",
+                [],
+            );
+        }
+    }
+
+    // Migration to version 3
     if version < 3 {
-        conn.execute_batch("ALTER TABLE env_var_items ADD COLUMN notes TEXT;")
-            .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+        let has_notes: std::result::Result<i32, _> = conn.query_row(
+            "SELECT 1 FROM pragma_table_info('env_var_items') WHERE name='notes'",
+            [],
+            |_| Ok(1),
+        );
+        if has_notes.is_err() {
+            let _ = conn.execute("ALTER TABLE env_var_items ADD COLUMN notes TEXT", []);
+        }
     }
 
     set_schema_version(conn, SCHEMA_VERSION)?;

@@ -119,8 +119,10 @@ export function AddEditItemModal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[DEBUG] handleSubmit: currentType =', currentType, 'isEditing =', isEditing);
     
     if (currentType === 'account') {
+      console.log('[DEBUG] handleSubmit account: groupId =', accountForm.groupId);
       if (isEditing) {
         await updateItem(editingItemId!, {
           title: accountForm.title,
@@ -140,6 +142,11 @@ export function AddEditItemModal() {
         });
       }
     } else if (currentType === 'api_key') {
+      console.log('[DEBUG] handleSubmit api_key: groupId =', apiKeyForm.groupId, 'groups =', groups);
+      if (!apiKeyForm.groupId) {
+        console.error('[DEBUG] handleSubmit api_key: groupId is empty!');
+        return;
+      }
       if (isEditing) {
         await updateApiKeyItem(editingItemId!, {
           title: apiKeyForm.title,
@@ -161,6 +168,11 @@ export function AddEditItemModal() {
         });
       }
     } else if (currentType === 'env_var') {
+      console.log('[DEBUG] handleSubmit env_var: groupId =', envVarForm.groupId, 'variables =', envVarForm.variables);
+      if (!envVarForm.groupId) {
+        console.error('[DEBUG] handleSubmit env_var: groupId is empty!');
+        return;
+      }
       const validVars = envVarForm.variables.filter(v => v.key.trim() && v.value.trim());
       if (isEditing) {
         await updateEnvVarItem(editingItemId!, {

@@ -42,7 +42,7 @@ export async function getAllItems(): Promise<ItemSummary[]> {
 }
 
 export async function getItemsByGroup(groupId: string): Promise<ItemSummary[]> {
-  return invoke<ItemSummary[]>('get_items_by_group_cmd', { groupId });
+  return invoke<ItemSummary[]>('get_items_by_group_cmd', { group_id: groupId });
 }
 
 export async function getItemDetail(id: string): Promise<ItemDetail> {
@@ -57,7 +57,7 @@ export async function createNewAccountItem(
   website?: string,
   notes?: string
 ): Promise<string> {
-  return invoke<string>('create_new_account_item', { groupId, title, username, password, website, notes });
+  return invoke<string>('create_new_account_item', { group_id: groupId, title, username, password, website, notes });
 }
 
 export async function updateExistingAccountItem(
@@ -80,6 +80,7 @@ export async function createNewApiKeyItem(
   authMethod?: string,
   notes?: string
 ): Promise<string> {
+  console.log('[DEBUG] createNewApiKeyItem called with:', { groupId, title, keyName });
   return invoke<string>('create_new_api_key_item', {
     group_id: groupId,
     title,

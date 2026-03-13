@@ -15,11 +15,24 @@ pub struct EnvVarPairInput {
     pub value: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateApiKeyRequest {
+    pub group_id: String,
+    pub title: String,
+    pub key_name: String,
+    pub key_value: String,
+    pub endpoint: Option<String>,
+    pub auth_method: Option<String>,
+    pub notes: Option<String>,
+}
+
 #[tauri::command]
 pub fn get_all_items_cmd(db: State<DbConnection>) -> Result<Vec<ItemSummary>> {
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
     get_all_items(&conn)
 }
 
@@ -28,9 +41,11 @@ pub fn get_items_by_group_cmd(
     db: State<DbConnection>,
     group_id: String,
 ) -> Result<Vec<ItemSummary>> {
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
     get_items_by_group(&conn, &group_id)
 }
 
@@ -47,9 +62,11 @@ pub fn get_item_detail(
     let key = vault_state
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
     let item_type: String = conn
         .query_row("SELECT type FROM items WHERE id = ?1", [&id], |row| {
@@ -82,21 +99,30 @@ pub fn create_new_account_item(
     website: Option<String>,
     notes: Option<String>,
 ) -> Result<String> {
+    eprintln!(
+        "[DEBUG] create_new_account_item: called with group_id={}, title={}",
+        group_id, title
+    );
+
     if !vault_state.is_unlocked() {
+        eprintln!("[DEBUG] create_new_account_item: vault is locked!");
         return Err(VaultError::VaultLocked);
     }
 
     if title.is_empty() || title.len() > 100 {
+        eprintln!("[DEBUG] create_new_account_item: invalid title");
         return Err(VaultError::DatabaseError(
             "Title must be 1-100 characters".to_string(),
         ));
     }
     if username.is_empty() || username.len() > 100 {
+        eprintln!("[DEBUG] create_new_account_item: invalid username");
         return Err(VaultError::DatabaseError(
             "Username must be 1-100 characters".to_string(),
         ));
     }
     if password.is_empty() || password.len() > 1000 {
+        eprintln!("[DEBUG] create_new_account_item: invalid password");
         return Err(VaultError::DatabaseError(
             "Password must be 1-1000 characters".to_string(),
         ));
@@ -105,11 +131,18 @@ pub fn create_new_account_item(
     let key = vault_state
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
-    create_account_item(
+    eprintln!("[DEBUG] create_new_account_item: got master key");
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+
+    eprintln!("[DEBUG] create_new_account_item: got db connection, calling create_account_item");
+
+    let result = create_account_item(
         &conn,
         &group_id,
         &title,
@@ -118,7 +151,10 @@ pub fn create_new_account_item(
         website.as_deref(),
         notes.as_deref(),
         key.as_bytes(),
-    )
+    );
+
+    eprintln!("[DEBUG] create_new_account_item: result = {:?}", result);
+    result
 }
 
 #[tauri::command]
@@ -157,9 +193,11 @@ pub fn update_existing_account_item(
     let key = vault_state
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
     update_account_item(
         &conn,
@@ -177,48 +215,51 @@ pub fn update_existing_account_item(
 pub fn create_new_api_key_item(
     db: State<DbConnection>,
     vault_state: State<VaultState>,
-    group_id: String,
-    title: String,
-    key_name: String,
-    key_value: String,
-    endpoint: Option<String>,
-    auth_method: Option<String>,
-    notes: Option<String>,
+    request: CreateApiKeyRequest,
 ) -> Result<String> {
+    eprintln!(
+        "[DEBUG] create_new_api_key_item: group_id={}, title={}, key_name={}",
+        request.group_id, request.title, request.key_name
+    );
+
     if !vault_state.is_unlocked() {
+        eprintln!("[DEBUG] create_new_api_key_item: vault locked");
         return Err(VaultError::VaultLocked);
     }
 
-    if title.is_empty() || title.len() > 100 {
+    if request.title.is_empty() || request.title.len() > 100 {
+        eprintln!("[DEBUG] create_new_api_key_item: invalid title");
         return Err(VaultError::DatabaseError(
             "Title must be 1-100 characters".to_string(),
         ));
     }
-    if key_name.is_empty() || key_name.len() > 100 {
+    if request.key_name.is_empty() || request.key_name.len() > 100 {
+        eprintln!("[DEBUG] create_new_api_key_item: invalid key_name");
         return Err(VaultError::DatabaseError(
             "Key name must be 1-100 characters".to_string(),
         ));
     }
-    if key_value.is_empty() || key_value.len() > 50000 {
+    if request.key_value.is_empty() || request.key_value.len() > 50000 {
+        eprintln!("[DEBUG] create_new_api_key_item: invalid key_value");
         return Err(VaultError::DatabaseError(
             "Key value must be 1-50000 characters".to_string(),
         ));
     }
-    if let Some(ref e) = endpoint {
+    if let Some(ref e) = request.endpoint {
         if e.len() > 500 {
             return Err(VaultError::DatabaseError(
                 "Endpoint must be under 500 characters".to_string(),
             ));
         }
     }
-    if let Some(ref am) = auth_method {
+    if let Some(ref am) = request.auth_method {
         if am.len() > 20 {
             return Err(VaultError::DatabaseError(
                 "Auth method must be under 20 characters".to_string(),
             ));
         }
     }
-    if let Some(ref n) = notes {
+    if let Some(ref n) = request.notes {
         if n.len() > 5000 {
             return Err(VaultError::DatabaseError(
                 "Notes must be under 5000 characters".to_string(),
@@ -229,21 +270,31 @@ pub fn create_new_api_key_item(
     let key = vault_state
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
-    create_api_key_item(
+    eprintln!("[DEBUG] create_new_api_key_item: got master key");
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+
+    eprintln!("[DEBUG] create_new_api_key_item: calling create_api_key_item");
+
+    let result = create_api_key_item(
         &conn,
-        &group_id,
-        &title,
-        &key_name,
-        &key_value,
-        endpoint.as_deref(),
-        auth_method.as_deref(),
-        notes.as_deref(),
+        &request.group_id,
+        &request.title,
+        &request.key_name,
+        &request.key_value,
+        request.endpoint.as_deref(),
+        request.auth_method.as_deref(),
+        request.notes.as_deref(),
         key.as_bytes(),
-    )
+    );
+
+    eprintln!("[DEBUG] create_new_api_key_item: result = {:?}", result);
+    result
 }
 
 #[tauri::command]
@@ -304,9 +355,11 @@ pub fn update_existing_api_key_item(
     let key = vault_state
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
     update_api_key_item(
         &conn,
@@ -323,17 +376,21 @@ pub fn update_existing_api_key_item(
 
 #[tauri::command]
 pub fn delete_existing_item(db: State<DbConnection>, id: String) -> Result<()> {
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
     delete_item(&conn, &id)
 }
 
 #[tauri::command]
 pub fn toggle_item_favorite(db: State<DbConnection>, id: String) -> Result<()> {
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
     toggle_favorite(&conn, &id)
 }
 
@@ -346,16 +403,26 @@ pub fn create_new_env_var_item(
     variables: Vec<EnvVarPairInput>,
     notes: Option<String>,
 ) -> Result<String> {
+    eprintln!(
+        "[DEBUG] create_new_env_var_item: group_id={}, title={}, variables count={}",
+        group_id,
+        title,
+        variables.len()
+    );
+
     if !vault_state.is_unlocked() {
+        eprintln!("[DEBUG] create_new_env_var_item: vault locked");
         return Err(VaultError::VaultLocked);
     }
 
     if title.is_empty() || title.len() > 100 {
+        eprintln!("[DEBUG] create_new_env_var_item: invalid title");
         return Err(VaultError::DatabaseError(
             "Title must be 1-100 characters".to_string(),
         ));
     }
     if variables.is_empty() {
+        eprintln!("[DEBUG] create_new_env_var_item: no variables");
         return Err(VaultError::DatabaseError(
             "At least one variable is required".to_string(),
         ));
@@ -383,9 +450,11 @@ pub fn create_new_env_var_item(
     let key = vault_state
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
     let vars: Vec<(String, String)> = variables
         .iter()
@@ -448,9 +517,11 @@ pub fn update_existing_env_var_item(
     let key = vault_state
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
-    let conn =
-        db.0.lock()
-            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
     let vars: Vec<(String, String)> = variables
         .iter()

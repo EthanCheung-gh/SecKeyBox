@@ -27,14 +27,14 @@ export function SetupScreen() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg">
-        <h1 className="mb-2 text-center text-2xl font-bold">SecKeyBox</h1>
-        <p className="mb-6 text-center text-gray-500">Create your master password</p>
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
+      <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg dark:bg-gray-800">
+        <h1 className="mb-2 text-center text-2xl font-bold dark:text-gray-100">SecKeyBox</h1>
+        <p className="mb-6 text-center text-gray-500 dark:text-gray-400">Create your master password</p>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">Master Password</label>
+            <label className="mb-1 block text-sm font-medium dark:text-gray-300">Master Password</label>
             <Input
               type="password"
               value={password}
@@ -44,7 +44,7 @@ export function SetupScreen() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Confirm Password</label>
+            <label className="mb-1 block text-sm font-medium dark:text-gray-300">Confirm Password</label>
             <Input
               type="password"
               value={confirm}

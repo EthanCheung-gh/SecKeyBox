@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import { invoke } from '@tauri-apps/api/core';
 import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, EnvVarPair } from '@/types';
-import * as api from '@/lib/tauri';
+import * as api from '@/lib/tauri'; // 保留读取操作的 api 调用
 
 interface VaultState {
   isInitialized: boolean | null;
@@ -79,12 +80,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   isLoading: false,
   error: null,
 
+  // --- 这里的读取操作保留 api 封装，因为它们没有报错 ---
   checkInitialized: async () => {
     try {
       const initialized = await api.isVaultInitialized();
       set({ isInitialized: initialized });
     } catch (e) {
-      set({ error: String(e) });
+      console.error('checkInitialized error:', e);
+      set({ isInitialized: false, error: String(e) });
     }
   },
 
@@ -146,140 +149,174 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   clearSelection: () => set({ selectedItem: null }),
 
+  // --- 从这里开始，所有的写入操作全改为直接 invoke ---
+
   createGroup: async (name, icon) => {
     try {
-      await api.createNewGroup(name, icon);
+      await invoke('create_new_group', { name, icon });
       await get().loadGroups();
     } catch (e) {
+      console.error('[DEBUG] createGroup error:', e);
       set({ error: String(e) });
     }
   },
 
   updateGroup: async (id, name, icon) => {
     try {
-      await api.updateExistingGroup(id, name, icon);
+      await invoke('update_existing_group', { id, name, icon });
       await get().loadGroups();
     } catch (e) {
+      console.error('[DEBUG] updateGroup error:', e);
       set({ error: String(e) });
     }
   },
 
   deleteGroup: async (id) => {
     try {
-      await api.deleteExistingGroup(id);
+      await invoke('delete_existing_group', { id });
       await get().loadGroups();
     } catch (e) {
+      console.error('[DEBUG] deleteGroup error:', e);
       set({ error: String(e) });
     }
   },
 
   createItem: async (data) => {
     try {
-      await api.createNewAccountItem(
-        data.groupId,
-        data.title,
-        data.username,
-        data.password,
-        data.website,
-        data.notes
-      );
+      await invoke('create_new_account_item', {
+        groupId: data.groupId, 
+        title: data.title,
+        username: data.username,
+        password: data.password,
+        website: data.website,
+        notes: data.notes
+      });
       await get().loadItems();
     } catch (e) {
+      console.error('[DEBUG] createItem error:', e);
       set({ error: String(e) });
     }
   },
 
   updateItem: async (id, data) => {
     try {
-      await api.updateExistingAccountItem(
+      await invoke('update_existing_account_item', {
         id,
-        data.title,
-        data.username,
-        data.password,
-        data.website,
-        data.notes
-      );
+        title: data.title,
+        username: data.username,
+        password: data.password,
+        website: data.website,
+        notes: data.notes
+      });
       await get().loadItems();
       if (get().selectedItem?.id === id) {
         await get().selectItem(id);
       }
     } catch (e) {
+      console.error('[DEBUG] updateItem error:', e);
       set({ error: String(e) });
     }
   },
 
   deleteItem: async (id) => {
     try {
-      await api.deleteExistingItem(id);
+      await invoke('delete_existing_item', { id });
       if (get().selectedItem?.id === id) {
         set({ selectedItem: null });
       }
       await get().loadItems();
     } catch (e) {
+      console.error('[DEBUG] deleteItem error:', e);
       set({ error: String(e) });
     }
   },
 
   createApiKeyItem: async (data) => {
     try {
-      await api.createNewApiKeyItem(
-        data.groupId, data.title, data.keyName, data.keyValue,
-        data.endpoint, data.authMethod, data.notes
-      );
+      await invoke('create_new_api_key_item', {
+        request: {
+          group_id: data.groupId,
+          title: data.title,
+          key_name: data.keyName,
+          key_value: data.keyValue,
+          endpoint: data.endpoint,
+          auth_method: data.authMethod,
+          notes: data.notes
+        }
+      });
       await get().loadItems();
     } catch (e) {
+      console.error('[DEBUG] createApiKeyItem error:', e);
       set({ error: String(e) });
     }
   },
 
   updateApiKeyItem: async (id, data) => {
     try {
-      await api.updateExistingApiKeyItem(
-        id, data.title, data.keyName, data.keyValue,
-        data.endpoint, data.authMethod, data.notes
-      );
+      // 保持和 createApiKey 一致的结构体模式
+      await invoke('update_existing_api_key_item', {
+        request: {
+          id: id,
+          title: data.title,
+          key_name: data.keyName,
+          key_value: data.keyValue,
+          endpoint: data.endpoint,
+          auth_method: data.authMethod,
+          notes: data.notes
+        }
+      });
       await get().loadItems();
       if (get().selectedItem?.id === id) {
         await get().selectItem(id);
       }
     } catch (e) {
+      console.error('[DEBUG] updateApiKeyItem error:', e);
       set({ error: String(e) });
     }
   },
 
   createEnvVarItem: async (data) => {
     try {
-      await api.createNewEnvVarItem(
-        data.groupId, data.title, data.variables, data.notes
-      );
+      await invoke('create_new_env_var_item', {
+        groupId: data.groupId,
+        title: data.title,
+        variables: data.variables,
+        notes: data.notes
+      });
       await get().loadItems();
     } catch (e) {
+      console.error('[DEBUG] createEnvVarItem error:', e);
       set({ error: String(e) });
     }
   },
 
   updateEnvVarItem: async (id, data) => {
     try {
-      await api.updateExistingEnvVarItem(
-        id, data.title, data.variables, data.notes
-      );
+      await invoke('update_existing_env_var_item', {
+        id, 
+        title: data.title, 
+        variables: data.variables, 
+        notes: data.notes
+      });
       await get().loadItems();
       if (get().selectedItem?.id === id) {
         await get().selectItem(id);
       }
     } catch (e) {
+      console.error('[DEBUG] updateEnvVarItem error:', e);
       set({ error: String(e) });
     }
   },
 
   toggleItemFavorite: async (id) => {
     try {
-      await api.toggleItemFavorite(id);
+      await invoke('toggle_item_favorite', { id });
       await get().loadItems();
       if (get().selectedItem?.id === id) {
         await get().selectItem(id);
       }
     } catch (e) {
+      console.error('[DEBUG] toggleItemFavorite error:', e);
       set({ error: String(e) });
     }
   },

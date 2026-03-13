@@ -26,9 +26,14 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let db_path = get_db_path(&app.handle());
+            eprintln!("[DEBUG] setup: db_path = {:?}", db_path);
+            eprintln!("[DEBUG] setup: db_path.exists() = {}", db_path.exists());
+            
             let conn = if db_path.exists() {
+                eprintln!("[DEBUG] setup: opening existing database file");
                 open_connection(&db_path).expect("Failed to open database")
             } else {
+                eprintln!("[DEBUG] setup: no database, using in-memory (will create file on init)");
                 rusqlite::Connection::open_in_memory().expect("Failed to create in-memory DB")
             };
             
@@ -37,7 +42,9 @@ pub fn run() {
 
             // Register Ctrl+Shift+Space global shortcut
             let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
-            app.global_shortcut().register(shortcut).expect("Failed to register global shortcut");
+            if let Err(e) = app.global_shortcut().register(shortcut) {
+                eprintln!("[WARN] Failed to register global shortcut: {:?}", e);
+            }
 
             // Listen for shortcut press
             let app_handle = app.handle().clone();
@@ -51,6 +58,16 @@ pub fn run() {
                     }
                 }
             });
+            
+            // Exit app when main window is closed
+            let app_handle = app.handle().clone();
+            if let Some(main_window) = app_handle.get_webview_window("main") {
+                main_window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        app_handle.exit(0);
+                    }
+                });
+            }
             
             Ok(())
         })

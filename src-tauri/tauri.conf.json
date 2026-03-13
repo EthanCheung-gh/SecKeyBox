@@ -23,8 +23,7 @@
         "fullscreen": false,
         "decorations": true,
         "transparent": false,
-        "center": true,
-        "visible": false
+        "center": true
       },
       {
         "label": "quick-search",
