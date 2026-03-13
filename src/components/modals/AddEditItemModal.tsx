@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog } from '@/components/ui/dialog';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
+import type { EnvVarPair } from '@/types';
 
 export function AddEditItemModal() {
   const isOpen = useUIStore((s) => s.isAddItemModalOpen || s.editingItemId !== null);
@@ -16,6 +17,8 @@ export function AddEditItemModal() {
   const updateItem = useVaultStore((s) => s.updateItem);
   const createApiKeyItem = useVaultStore((s) => s.createApiKeyItem);
   const updateApiKeyItem = useVaultStore((s) => s.updateApiKeyItem);
+  const createEnvVarItem = useVaultStore((s) => s.createEnvVarItem);
+  const updateEnvVarItem = useVaultStore((s) => s.updateEnvVarItem);
   const selectedGroupId = useUIStore((s) => s.selectedGroupId);
   const newItemType = useUIStore((s) => s.newItemType);
   const setNewItemType = useUIStore((s) => s.setNewItemType);
@@ -36,6 +39,13 @@ export function AddEditItemModal() {
     keyValue: '',
     endpoint: '',
     authMethod: '',
+    notes: '',
+  });
+
+  const [envVarForm, setEnvVarForm] = useState({
+    groupId: '',
+    title: '',
+    variables: [{ key: '', value: '' }] as EnvVarPair[],
     notes: '',
   });
 
@@ -64,6 +74,13 @@ export function AddEditItemModal() {
           authMethod: selectedItem.auth_method || '',
           notes: selectedItem.notes || '',
         });
+      } else if (selectedItem.type === 'env_var') {
+        setEnvVarForm({
+          groupId: selectedItem.group_id,
+          title: selectedItem.title,
+          variables: selectedItem.variables.length > 0 ? selectedItem.variables : [{ key: '', value: '' }],
+          notes: selectedItem.notes || '',
+        });
       }
     } else {
       const defaultGroupId = selectedGroupId || groups[0]?.id || '';
@@ -82,6 +99,12 @@ export function AddEditItemModal() {
         keyValue: '',
         endpoint: '',
         authMethod: '',
+        notes: '',
+      });
+      setEnvVarForm({
+        groupId: defaultGroupId,
+        title: '',
+        variables: [{ key: '', value: '' }],
         notes: '',
       });
     }
@@ -136,8 +159,46 @@ export function AddEditItemModal() {
           notes: apiKeyForm.notes || undefined,
         });
       }
+    } else if (currentType === 'env_var') {
+      const validVars = envVarForm.variables.filter(v => v.key.trim() && v.value.trim());
+      if (isEditing) {
+        await updateEnvVarItem(editingItemId!, {
+          title: envVarForm.title,
+          variables: validVars,
+          notes: envVarForm.notes || undefined,
+        });
+      } else {
+        await createEnvVarItem({
+          groupId: envVarForm.groupId,
+          title: envVarForm.title,
+          variables: validVars,
+          notes: envVarForm.notes || undefined,
+        });
+      }
     }
     handleClose();
+  };
+
+  const addEnvVar = () => {
+    setEnvVarForm({
+      ...envVarForm,
+      variables: [...envVarForm.variables, { key: '', value: '' }],
+    });
+  };
+
+  const removeEnvVar = (index: number) => {
+    if (envVarForm.variables.length > 1) {
+      setEnvVarForm({
+        ...envVarForm,
+        variables: envVarForm.variables.filter((_, i) => i !== index),
+      });
+    }
+  };
+
+  const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
+    const newVars = [...envVarForm.variables];
+    newVars[index] = { ...newVars[index], [field]: value };
+    setEnvVarForm({ ...envVarForm, variables: newVars });
   };
 
   const renderAccountFields = () => (
@@ -238,6 +299,83 @@ export function AddEditItemModal() {
     </>
   );
 
+  const renderEnvVarFields = () => (
+    <>
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="text-sm font-medium">Variables *</label>
+          <Button type="button" variant="outline" size="sm" onClick={addEnvVar}>
+            + Add Variable
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {envVarForm.variables.map((v, i) => (
+            <div key={i} className="flex gap-2">
+              <Input
+                placeholder="KEY"
+                value={v.key}
+                onChange={(e) => updateEnvVar(i, 'key', e.target.value)}
+                className="flex-1 font-mono text-sm"
+              />
+              <Input
+                placeholder="value"
+                value={v.value}
+                onChange={(e) => updateEnvVar(i, 'value', e.target.value)}
+                className="flex-1"
+              />
+              {envVarForm.variables.length > 1 && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => removeEnvVar(i)}>
+                  ×
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium">Notes</label>
+        <textarea
+          value={envVarForm.notes}
+          onChange={(e) => setEnvVarForm({ ...envVarForm, notes: e.target.value })}
+          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          rows={3}
+        />
+      </div>
+    </>
+  );
+
+  const getGroupId = () => {
+    if (currentType === 'account') return accountForm.groupId;
+    if (currentType === 'api_key') return apiKeyForm.groupId;
+    return envVarForm.groupId;
+  };
+
+  const setGroupId = (id: string) => {
+    if (currentType === 'account') {
+      setAccountForm({ ...accountForm, groupId: id });
+    } else if (currentType === 'api_key') {
+      setApiKeyForm({ ...apiKeyForm, groupId: id });
+    } else {
+      setEnvVarForm({ ...envVarForm, groupId: id });
+    }
+  };
+
+  const getTitle = () => {
+    if (currentType === 'account') return accountForm.title;
+    if (currentType === 'api_key') return apiKeyForm.title;
+    return envVarForm.title;
+  };
+
+  const setTitle = (title: string) => {
+    if (currentType === 'account') {
+      setAccountForm({ ...accountForm, title });
+    } else if (currentType === 'api_key') {
+      setApiKeyForm({ ...apiKeyForm, title });
+    } else {
+      setEnvVarForm({ ...envVarForm, title });
+    }
+  };
+
   return (
     <Dialog open={isOpen} onClose={handleClose} title={isEditing ? 'Edit Item' : 'Add Item'}>
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -246,26 +384,20 @@ export function AddEditItemModal() {
             <label className="mb-1 block text-sm font-medium">Type</label>
             <select
               value={currentType}
-              onChange={(e) => setNewItemType(e.target.value as 'account' | 'api_key')}
+              onChange={(e) => setNewItemType(e.target.value as 'account' | 'api_key' | 'env_var')}
               className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
             >
               <option value="account">Account</option>
               <option value="api_key">API Key</option>
+              <option value="env_var">Environment Variables</option>
             </select>
           </div>
         )}
         <div>
           <label className="mb-1 block text-sm font-medium">Group</label>
           <select
-            value={currentType === 'account' ? accountForm.groupId : apiKeyForm.groupId}
-            onChange={(e) => {
-              const form = { groupId: e.target.value };
-              if (currentType === 'account') {
-                setAccountForm({ ...accountForm, ...form });
-              } else {
-                setApiKeyForm({ ...apiKeyForm, ...form });
-              }
-            }}
+            value={getGroupId()}
+            onChange={(e) => setGroupId(e.target.value)}
             className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
             disabled={isEditing}
           >
@@ -279,18 +411,14 @@ export function AddEditItemModal() {
         <div>
           <label className="mb-1 block text-sm font-medium">Title *</label>
           <Input
-            value={currentType === 'account' ? accountForm.title : apiKeyForm.title}
-            onChange={(e) => {
-              if (currentType === 'account') {
-                setAccountForm({ ...accountForm, title: e.target.value });
-              } else {
-                setApiKeyForm({ ...apiKeyForm, title: e.target.value });
-              }
-            }}
+            value={getTitle()}
+            onChange={(e) => setTitle(e.target.value)}
             required
           />
         </div>
-        {currentType === 'account' ? renderAccountFields() : renderApiKeyFields()}
+        {currentType === 'account' && renderAccountFields()}
+        {currentType === 'api_key' && renderApiKeyFields()}
+        {currentType === 'env_var' && renderEnvVarFields()}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={handleClose}>
             Cancel

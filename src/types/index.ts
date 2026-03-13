@@ -13,7 +13,7 @@ export interface ItemSummary {
   title: string;
   subtitle: string;
   icon?: string;
-  type: 'account' | 'api_key';
+  type: 'account' | 'api_key' | 'env_var';
   is_favorite: boolean;
   group_id: string;
   created_at: number;
@@ -52,7 +52,25 @@ export interface ApiKeyItemDetail {
   notes?: string;
 }
 
-export type ItemDetail = AccountItemDetail | ApiKeyItemDetail;
+export interface EnvVarPair {
+  key: string;
+  value: string;
+}
+
+export interface EnvVarItemDetail {
+  id: string;
+  group_id: string;
+  title: string;
+  icon?: string;
+  type: 'env_var';
+  is_favorite: boolean;
+  created_at: number;
+  updated_at: number;
+  variables: EnvVarPair[];
+  notes?: string;
+}
+
+export type ItemDetail = AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail;
 
 export interface CreateAccountItemInput {
   group_id: string;
@@ -89,6 +107,20 @@ export interface UpdateApiKeyItemInput {
   key_value?: string;
   endpoint?: string;
   auth_method?: string;
+  notes?: string;
+}
+
+export interface CreateEnvVarItemInput {
+  group_id: string;
+  title: string;
+  variables: EnvVarPair[];
+  notes?: string;
+}
+
+export interface UpdateEnvVarItemInput {
+  id: string;
+  title: string;
+  variables: EnvVarPair[];
   notes?: string;
 }
 

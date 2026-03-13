@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail } from '@/types';
+import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, EnvVarPair } from '@/types';
 import * as api from '@/lib/tauri';
 
 interface VaultState {
@@ -7,7 +7,7 @@ interface VaultState {
   isUnlocked: boolean;
   groups: Group[];
   items: ItemSummary[];
-  selectedItem: AccountItemDetail | ApiKeyItemDetail | null;
+  selectedItem: AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail | null;
   isLoading: boolean;
   error: string | null;
   
@@ -53,6 +53,17 @@ interface VaultState {
     keyValue?: string;
     endpoint?: string;
     authMethod?: string;
+    notes?: string;
+  }) => Promise<void>;
+  createEnvVarItem: (data: {
+    groupId: string;
+    title: string;
+    variables: EnvVarPair[];
+    notes?: string;
+  }) => Promise<void>;
+  updateEnvVarItem: (id: string, data: {
+    title: string;
+    variables: EnvVarPair[];
     notes?: string;
   }) => Promise<void>;
   clearError: () => void;
@@ -126,7 +137,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   selectItem: async (id) => {
     try {
       const item = await api.getItemDetail(id);
-      set({ selectedItem: item as AccountItemDetail | ApiKeyItemDetail });
+      set({ selectedItem: item as AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -225,6 +236,31 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       await api.updateExistingApiKeyItem(
         id, data.title, data.keyName, data.keyValue,
         data.endpoint, data.authMethod, data.notes
+      );
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  createEnvVarItem: async (data) => {
+    try {
+      await api.createNewEnvVarItem(
+        data.groupId, data.title, data.variables, data.notes
+      );
+      await get().loadItems();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  updateEnvVarItem: async (id, data) => {
+    try {
+      await api.updateExistingEnvVarItem(
+        id, data.title, data.variables, data.notes
       );
       await get().loadItems();
       if (get().selectedItem?.id === id) {

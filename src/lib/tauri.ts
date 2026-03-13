@@ -111,6 +111,34 @@ export async function updateExistingApiKeyItem(
   });
 }
 
+export async function createNewEnvVarItem(
+  groupId: string,
+  title: string,
+  variables: { key: string; value: string }[],
+  notes?: string
+): Promise<string> {
+  return invoke<string>('create_new_env_var_item', {
+    group_id: groupId,
+    title,
+    variables,
+    notes
+  });
+}
+
+export async function updateExistingEnvVarItem(
+  id: string,
+  title: string,
+  variables: { key: string; value: string }[],
+  notes?: string
+): Promise<void> {
+  return invoke<void>('update_existing_env_var_item', {
+    id,
+    title,
+    variables,
+    notes
+  });
+}
+
 export async function deleteExistingItem(id: string): Promise<void> {
   return invoke<void>('delete_existing_item', { id });
 }
