@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 2;
+const SCHEMA_VERSION: i32 = 3;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -80,6 +80,11 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
              ALTER TABLE api_key_items ADD COLUMN rotation_date INTEGER;",
         )
         .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    if version < 3 {
+        conn.execute_batch("ALTER TABLE env_var_items ADD COLUMN notes TEXT;")
+            .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
     }
 
     set_schema_version(conn, SCHEMA_VERSION)?;
