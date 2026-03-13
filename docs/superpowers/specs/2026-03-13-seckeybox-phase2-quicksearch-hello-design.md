@@ -226,17 +226,17 @@ keyring::Entry::new("SecKeyBox", "biometric_key").set_password(&encrypted)?;
 
 ## Implementation Order
 
-1. **Global Quick Search** - Higher value, works on all platforms
-2. **Windows Hello** - Platform-specific (Windows only)
+1. **Global Quick Search** - ✅ COMPLETE - Works on all platforms
+2. **Windows Hello** - ⏸️ DEFERRED - tauri-plugin-biometric only supports Android/iOS, not Windows
 
 ## Dependencies
 
 **Cargo.toml additions:**
 ```toml
 tauri-plugin-global-shortcut = "2"
-tauri-plugin-biometric = "2"
-keyring = "3"  # For secure credential storage
 ```
+
+**Note:** Windows Hello would require direct Win32 API integration via the `windows` crate, which is deferred for future implementation.
 
 ## UI/UX Considerations
 
