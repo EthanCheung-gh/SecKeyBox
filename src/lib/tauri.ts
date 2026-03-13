@@ -154,3 +154,18 @@ export async function copyToClipboard(text: string): Promise<void> {
 export async function clearClipboard(): Promise<void> {
   return invoke<void>('clear_clipboard');
 }
+
+export interface ImportResult {
+  groups_imported: number;
+  items_imported: number;
+  groups_skipped: number;
+  items_skipped: number;
+}
+
+export async function exportVault(): Promise<string> {
+  return invoke<string>('export_vault');
+}
+
+export async function importVault(data: string, mode: 'merge' | 'replace'): Promise<ImportResult> {
+  return invoke<ImportResult>('import_vault', { data, mode });
+}

@@ -22,6 +22,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let db_path = get_db_path(&app.handle());
             let conn = if db_path.exists() {
@@ -76,6 +78,8 @@ pub fn run() {
             copy_to_clipboard,
             clear_clipboard,
             search_items,
+            export_vault,
+            import_vault,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

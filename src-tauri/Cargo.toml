@@ -10,6 +10,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-global-shortcut = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
@@ -20,6 +22,7 @@ rand = "0.8"
 zeroize = "1"
 thiserror = "2"
 parking_lot = "0.12"
+base64 = "0.22"
 
 [profile.release]
 strip = true
