@@ -18,11 +18,16 @@ export default defineConfig({
     },
   },
   build: {
+    target: 'esnext',
+    minify: 'esbuild',
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
         'quick-search': resolve(__dirname, 'quick-search.html'),
       },
     },
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'zustand', 'lucide-react'],
   },
 });

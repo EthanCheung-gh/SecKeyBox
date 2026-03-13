@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useVaultStore } from '@/stores/vault';
 import { useActivityTracker } from '@/hooks/useActivityTracker';
 import { SetupScreen } from '@/components/unlock/SetupScreen';
@@ -41,12 +42,14 @@ function App() {
     checkInitialized();
   }, [checkInitialized]);
 
+  useEffect(() => {
+    if (isInitialized !== null) {
+      getCurrentWindow().show();
+    }
+  }, [isInitialized]);
+
   if (isInitialized === null) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100">
-        <p>Loading...</p>
-      </div>
-    );
+    return null;
   }
 
   if (!isInitialized) {
