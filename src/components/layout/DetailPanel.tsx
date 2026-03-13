@@ -18,8 +18,8 @@ export function DetailPanel() {
 
   if (!selectedItem) {
     return (
-      <div className="flex h-full flex-1 items-center justify-center bg-gray-50">
-        <p className="text-gray-400">Select an item to view details</p>
+      <div className="flex h-full flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <p className="text-gray-400 dark:text-gray-500">Select an item to view details</p>
       </div>
     );
   }
@@ -36,9 +36,9 @@ export function DetailPanel() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500">Username</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Username</label>
           <div className="flex items-center gap-2">
-            <span className="font-medium">{item.username}</span>
+            <span className="font-medium dark:text-gray-100">{item.username}</span>
             <Button variant="ghost" size="sm" onClick={() => handleCopy(item.username)}>
               <Copy className="h-4 w-4" />
             </Button>
@@ -46,9 +46,9 @@ export function DetailPanel() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500">Password</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Password</label>
           <div className="flex items-center gap-2">
-            <span className="font-medium">
+            <span className="font-medium dark:text-gray-100">
               {showPassword ? item.password : '••••••••'}
             </span>
             <Button variant="ghost" size="sm" onClick={() => setShowPassword(!showPassword)}>
@@ -62,12 +62,12 @@ export function DetailPanel() {
 
         {item.website && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500">Website</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Website</label>
             <a
               href={item.website}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-600 hover:underline"
+              className="text-primary-600 hover:underline dark:text-primary-400"
             >
               {item.website}
             </a>
@@ -76,8 +76,8 @@ export function DetailPanel() {
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500">Notes</label>
-            <p className="whitespace-pre-wrap text-gray-700">{item.notes}</p>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
       </div>
@@ -89,9 +89,9 @@ export function DetailPanel() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500">Key Name</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Key Name</label>
           <div className="flex items-center gap-2">
-            <span className="font-medium">{item.key_name}</span>
+            <span className="font-medium dark:text-gray-100">{item.key_name}</span>
             <Button variant="ghost" size="sm" onClick={() => handleCopy(item.key_name)}>
               <Copy className="h-4 w-4" />
             </Button>
@@ -99,9 +99,9 @@ export function DetailPanel() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500">Key Value</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Key Value</label>
           <div className="flex items-center gap-2">
-            <span className="font-medium font-mono text-sm">
+            <span className="font-medium font-mono text-sm dark:text-gray-100">
               {showKeyValue ? item.key_value : maskKeyValue(item.key_value)}
             </span>
             <Button variant="ghost" size="sm" onClick={() => setShowKeyValue(!showKeyValue)}>
@@ -115,13 +115,13 @@ export function DetailPanel() {
 
         {item.endpoint && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500">Endpoint</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Endpoint</label>
             <div className="flex items-center gap-2">
               <a
                 href={item.endpoint}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary-600 hover:underline"
+                className="text-primary-600 hover:underline dark:text-primary-400"
               >
                 {item.endpoint}
               </a>
@@ -134,9 +134,9 @@ export function DetailPanel() {
 
         {item.auth_method && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500">Auth Method</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Auth Method</label>
             <div className="flex items-center gap-2">
-              <span className="font-medium capitalize">{item.auth_method.replace('_', ' ')}</span>
+              <span className="font-medium capitalize dark:text-gray-100">{item.auth_method.replace('_', ' ')}</span>
               <Button variant="ghost" size="sm" onClick={() => handleCopy(item.auth_method!)}>
                 <Copy className="h-4 w-4" />
               </Button>
@@ -145,14 +145,14 @@ export function DetailPanel() {
         )}
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500">Last Rotated</label>
-          <span className="text-gray-700">{formatRotationDate(item.rotation_date)}</span>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Last Rotated</label>
+          <span className="text-gray-700 dark:text-gray-300">{formatRotationDate(item.rotation_date)}</span>
         </div>
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500">Notes</label>
-            <p className="whitespace-pre-wrap text-gray-700">{item.notes}</p>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
       </div>
@@ -164,20 +164,20 @@ export function DetailPanel() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-500">
+          <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
             Variables ({item.variables.length})
           </label>
           <div className="space-y-2">
             {item.variables.map((v, i) => (
-              <div key={i} className="rounded-md border border-gray-200 p-3">
+              <div key={i} className="rounded-md border border-gray-200 p-3 dark:border-gray-600">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="font-mono text-sm font-medium text-gray-700">{v.key}</span>
+                  <span className="font-mono text-sm font-medium text-gray-700 dark:text-gray-300">{v.key}</span>
                   <Button variant="ghost" size="sm" onClick={() => handleCopy(v.key)}>
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm">
+                  <span className="font-mono text-sm dark:text-gray-100">
                     {showEnvVarValues[i] ? v.value : '••••••••'}
                   </span>
                   <Button
@@ -198,8 +198,8 @@ export function DetailPanel() {
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500">Notes</label>
-            <p className="whitespace-pre-wrap text-gray-700">{item.notes}</p>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
       </div>
@@ -220,11 +220,11 @@ export function DetailPanel() {
   };
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-white p-6">
+    <div className="flex h-full flex-1 flex-col bg-white p-6 dark:bg-gray-900">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{selectedItem.title}</h1>
-          <span className="text-sm text-gray-500 capitalize">{selectedItem.type.replace('_', ' ')}</span>
+          <h1 className="text-xl font-semibold dark:text-gray-100">{selectedItem.title}</h1>
+          <span className="text-sm text-gray-500 capitalize dark:text-gray-400">{selectedItem.type.replace('_', ' ')}</span>
         </div>
         <div className="flex gap-2">
           <Button

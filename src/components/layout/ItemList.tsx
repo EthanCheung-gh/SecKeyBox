@@ -38,12 +38,12 @@ export function ItemList() {
     });
 
   return (
-    <div className="flex h-full w-80 flex-col border-r bg-white">
-      <div className="flex items-center justify-between border-b p-4">
+    <div className="flex h-full w-80 flex-col border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as any)}
-          className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+          className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
         >
           <option value="name_asc">Name (A-Z)</option>
           <option value="name_desc">Name (Z-A)</option>
@@ -57,7 +57,7 @@ export function ItemList() {
       
       <div className="flex-1 overflow-y-auto">
         {filteredAndSortedItems.length === 0 ? (
-          <div className="p-4 text-center text-gray-500">
+          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
             {showFavoritesOnly ? 'No favorite items' : 'No items'}
           </div>
         ) : (
@@ -65,15 +65,15 @@ export function ItemList() {
             <button
               key={item.id}
               onClick={() => selectItem(item.id)}
-              className={`w-full border-b p-3 text-left hover:bg-gray-50 ${
-                selectedItem?.id === item.id ? 'bg-primary-50' : ''
+              className={`w-full border-b border-gray-200 p-3 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700 ${
+                selectedItem?.id === item.id ? 'bg-primary-50 dark:bg-primary-900/30' : ''
               }`}
             >
               <div className="flex items-center gap-2">
-                <span className="font-medium">{item.title}</span>
+                <span className="font-medium dark:text-gray-100">{item.title}</span>
                 {item.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
               </div>
-              <div className="text-sm text-gray-500">{item.subtitle}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{item.subtitle}</div>
             </button>
           ))
         )}

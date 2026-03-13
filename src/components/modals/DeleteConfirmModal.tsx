@@ -27,10 +27,10 @@ export function DeleteConfirmModal() {
 
   return (
     <Dialog open={!!target} onClose={close} title={`Delete ${target.type}?`}>
-      <p className="mb-4 text-gray-600">
+      <p className="mb-4 text-gray-600 dark:text-gray-300">
         Are you sure you want to delete "{target.name}"?
         {itemCount > 0 && (
-          <span className="block mt-2 font-medium text-red-600">
+          <span className="block mt-2 font-medium text-red-600 dark:text-red-400">
             This will permanently delete {itemCount} item{itemCount !== 1 ? 's' : ''} in this group.
           </span>
         )}

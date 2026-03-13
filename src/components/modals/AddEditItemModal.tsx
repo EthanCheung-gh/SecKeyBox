@@ -234,7 +234,7 @@ export function AddEditItemModal() {
         <textarea
           value={accountForm.notes}
           onChange={(e) => setAccountForm({ ...accountForm, notes: e.target.value })}
-          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
           rows={3}
         />
       </div>
@@ -259,7 +259,7 @@ export function AddEditItemModal() {
         <textarea
           value={apiKeyForm.keyValue}
           onChange={(e) => setApiKeyForm({ ...apiKeyForm, keyValue: e.target.value })}
-          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm font-mono"
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-mono dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
           rows={4}
           required={!isEditing}
           placeholder="Paste your API key here..."
@@ -278,7 +278,7 @@ export function AddEditItemModal() {
         <select
           value={apiKeyForm.authMethod}
           onChange={(e) => setApiKeyForm({ ...apiKeyForm, authMethod: e.target.value })}
-          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
         >
           <option value="">Select...</option>
           <option value="bearer">Bearer Token</option>
@@ -292,7 +292,7 @@ export function AddEditItemModal() {
         <textarea
           value={apiKeyForm.notes}
           onChange={(e) => setApiKeyForm({ ...apiKeyForm, notes: e.target.value })}
-          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
           rows={3}
         />
       </div>
@@ -337,7 +337,7 @@ export function AddEditItemModal() {
         <textarea
           value={envVarForm.notes}
           onChange={(e) => setEnvVarForm({ ...envVarForm, notes: e.target.value })}
-          className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
           rows={3}
         />
       </div>
@@ -385,7 +385,7 @@ export function AddEditItemModal() {
             <select
               value={currentType}
               onChange={(e) => setNewItemType(e.target.value as 'account' | 'api_key' | 'env_var')}
-              className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             >
               <option value="account">Account</option>
               <option value="api_key">API Key</option>
@@ -398,7 +398,7 @@ export function AddEditItemModal() {
           <select
             value={getGroupId()}
             onChange={(e) => setGroupId(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             disabled={isEditing}
           >
             {groups.map((g) => (
