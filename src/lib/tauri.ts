@@ -71,6 +71,46 @@ export async function updateExistingAccountItem(
   return invoke<void>('update_existing_account_item', { id, title, username, password, website, notes });
 }
 
+export async function createNewApiKeyItem(
+  groupId: string,
+  title: string,
+  keyName: string,
+  keyValue: string,
+  endpoint?: string,
+  authMethod?: string,
+  notes?: string
+): Promise<string> {
+  return invoke<string>('create_new_api_key_item', {
+    group_id: groupId,
+    title,
+    key_name: keyName,
+    key_value: keyValue,
+    endpoint,
+    auth_method: authMethod,
+    notes
+  });
+}
+
+export async function updateExistingApiKeyItem(
+  id: string,
+  title: string,
+  keyName: string,
+  keyValue?: string,
+  endpoint?: string,
+  authMethod?: string,
+  notes?: string
+): Promise<void> {
+  return invoke<void>('update_existing_api_key_item', {
+    id,
+    title,
+    key_name: keyName,
+    key_value: keyValue,
+    endpoint,
+    auth_method: authMethod,
+    notes
+  });
+}
+
 export async function deleteExistingItem(id: string): Promise<void> {
   return invoke<void>('delete_existing_item', { id });
 }

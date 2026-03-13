@@ -9,6 +9,7 @@ interface UIState {
   editingGroupId: string | null;
   editingItemId: string | null;
   deleteConfirmTarget: { type: 'group' | 'item'; id: string; name: string } | null;
+  newItemType: 'account' | 'api_key';
   
   setSelectedGroup: (id: string | null) => void;
   setSearchQuery: (query: string) => void;
@@ -23,6 +24,7 @@ interface UIState {
   closeEditItemModal: () => void;
   openDeleteConfirm: (type: 'group' | 'item', id: string, name: string) => void;
   closeDeleteConfirm: () => void;
+  setNewItemType: (type: 'account' | 'api_key') => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -34,6 +36,7 @@ export const useUIStore = create<UIState>((set) => ({
   editingGroupId: null,
   editingItemId: null,
   deleteConfirmTarget: null,
+  newItemType: 'account',
 
   setSelectedGroup: (id) => set({ selectedGroupId: id }),
   setSearchQuery: (query) => set({ searchQuery: query }),
@@ -48,4 +51,5 @@ export const useUIStore = create<UIState>((set) => ({
   closeEditItemModal: () => set({ editingItemId: null }),
   openDeleteConfirm: (type, id, name) => set({ deleteConfirmTarget: { type, id, name } }),
   closeDeleteConfirm: () => set({ deleteConfirmTarget: null }),
+  setNewItemType: (type) => set({ newItemType: type }),
 }));

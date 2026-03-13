@@ -1,8 +1,7 @@
 use crate::db::{
     create_account_item, create_api_key_item, delete_item, get_account_item_detail, get_all_items,
     get_api_key_item_detail, get_items_by_group, toggle_favorite, update_account_item,
-    update_api_key_item, AccountItemDetail, ApiKeyItemDetail, DbConnection, ItemDetail,
-    ItemSummary,
+    update_api_key_item, DbConnection, ItemDetail, ItemSummary,
 };
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;

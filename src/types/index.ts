@@ -13,14 +13,14 @@ export interface ItemSummary {
   title: string;
   subtitle: string;
   icon?: string;
-  type: 'account';
+  type: 'account' | 'api_key';
   is_favorite: boolean;
   group_id: string;
   created_at: number;
   updated_at: number;
 }
 
-export interface ItemDetail {
+export interface AccountItemDetail {
   id: string;
   group_id: string;
   title: string;
@@ -34,6 +34,25 @@ export interface ItemDetail {
   website?: string;
   notes?: string;
 }
+
+export interface ApiKeyItemDetail {
+  id: string;
+  group_id: string;
+  title: string;
+  icon?: string;
+  type: 'api_key';
+  is_favorite: boolean;
+  created_at: number;
+  updated_at: number;
+  key_name: string;
+  key_value: string;
+  endpoint?: string;
+  auth_method?: string;
+  rotation_date?: number;
+  notes?: string;
+}
+
+export type ItemDetail = AccountItemDetail | ApiKeyItemDetail;
 
 export interface CreateAccountItemInput {
   group_id: string;
@@ -50,6 +69,26 @@ export interface UpdateAccountItemInput {
   username: string;
   password?: string;
   website?: string;
+  notes?: string;
+}
+
+export interface CreateApiKeyItemInput {
+  group_id: string;
+  title: string;
+  key_name: string;
+  key_value: string;
+  endpoint?: string;
+  auth_method?: string;
+  notes?: string;
+}
+
+export interface UpdateApiKeyItemInput {
+  id: string;
+  title: string;
+  key_name: string;
+  key_value?: string;
+  endpoint?: string;
+  auth_method?: string;
   notes?: string;
 }
 

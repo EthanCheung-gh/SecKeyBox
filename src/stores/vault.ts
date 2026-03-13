@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Group, ItemSummary, ItemDetail } from '@/types';
+import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail } from '@/types';
 import * as api from '@/lib/tauri';
 
 interface VaultState {
@@ -7,7 +7,7 @@ interface VaultState {
   isUnlocked: boolean;
   groups: Group[];
   items: ItemSummary[];
-  selectedItem: ItemDetail | null;
+  selectedItem: AccountItemDetail | ApiKeyItemDetail | null;
   isLoading: boolean;
   error: string | null;
   
@@ -38,6 +38,23 @@ interface VaultState {
     notes?: string;
   }) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
+  createApiKeyItem: (data: {
+    groupId: string;
+    title: string;
+    keyName: string;
+    keyValue: string;
+    endpoint?: string;
+    authMethod?: string;
+    notes?: string;
+  }) => Promise<void>;
+  updateApiKeyItem: (id: string, data: {
+    title: string;
+    keyName: string;
+    keyValue?: string;
+    endpoint?: string;
+    authMethod?: string;
+    notes?: string;
+  }) => Promise<void>;
   clearError: () => void;
 }
 
@@ -109,7 +126,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   selectItem: async (id) => {
     try {
       const item = await api.getItemDetail(id);
-      set({ selectedItem: item });
+      set({ selectedItem: item as AccountItemDetail | ApiKeyItemDetail });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -186,6 +203,33 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         set({ selectedItem: null });
       }
       await get().loadItems();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  createApiKeyItem: async (data) => {
+    try {
+      await api.createNewApiKeyItem(
+        data.groupId, data.title, data.keyName, data.keyValue,
+        data.endpoint, data.authMethod, data.notes
+      );
+      await get().loadItems();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  updateApiKeyItem: async (id, data) => {
+    try {
+      await api.updateExistingApiKeyItem(
+        id, data.title, data.keyName, data.keyValue,
+        data.endpoint, data.authMethod, data.notes
+      );
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
     } catch (e) {
       set({ error: String(e) });
     }
