@@ -1,7 +1,7 @@
-use rusqlite::Connection;
 use crate::error::Result;
+use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 1;
+const SCHEMA_VERSION: i32 = 2;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -63,10 +63,26 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
         CREATE INDEX IF NOT EXISTS idx_items_favorite ON items(is_favorite);
         "#,
-    ).map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    )
+    .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
 
     set_schema_version(conn, SCHEMA_VERSION)?;
-    
+
+    Ok(())
+}
+
+pub fn run_migrations(conn: &Connection) -> Result<()> {
+    let version = get_schema_version(conn)?;
+
+    if version < 2 {
+        conn.execute_batch(
+            "ALTER TABLE api_key_items ADD COLUMN auth_method TEXT;
+             ALTER TABLE api_key_items ADD COLUMN rotation_date INTEGER;",
+        )
+        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    set_schema_version(conn, SCHEMA_VERSION)?;
     Ok(())
 }
 
@@ -74,17 +90,18 @@ fn set_schema_version(conn: &Connection, version: i32) -> Result<()> {
     conn.execute(
         "INSERT OR REPLACE INTO vault_config (key, value) VALUES ('schema_version', ?)",
         [version.to_string()],
-    ).map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    )
+    .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
     Ok(())
 }
 
 pub fn get_schema_version(conn: &Connection) -> Result<i32> {
-    let version: Result<i32, _> = conn.query_row(
+    let version: std::result::Result<i32, _> = conn.query_row(
         "SELECT value FROM vault_config WHERE key = 'schema_version'",
         [],
         |row| row.get(0),
     );
-    
+
     match version {
         Ok(v) => Ok(v),
         Err(_) => Ok(0),
@@ -101,6 +118,6 @@ pub fn insert_builtin_groups(conn: &Connection) -> Result<()> {
             ('built-in-env-vars', 'Environment Variables', '📦', 2, strftime('%s', 'now'), strftime('%s', 'now'));
         "#,
     ).map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
-    
+
     Ok(())
 }
