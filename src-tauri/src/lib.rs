@@ -9,7 +9,7 @@ pub use crypto::{derive_key, verify_password, encrypt, decrypt, SecureKey, Encry
 pub use state::VaultState;
 pub use db::{
     init_schema, insert_builtin_groups, run_migrations,
-    Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, ItemDetail,
+    Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, EnvVarPair, ItemDetail,
     DbConnection, open_connection, get_db_path,
 };
 
@@ -50,6 +50,8 @@ pub fn run() {
             update_existing_account_item,
             create_new_api_key_item,
             update_existing_api_key_item,
+            create_new_env_var_item,
+            update_existing_env_var_item,
             delete_existing_item,
             toggle_item_favorite,
             copy_to_clipboard,

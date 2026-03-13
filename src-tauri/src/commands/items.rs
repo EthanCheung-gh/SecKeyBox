@@ -1,11 +1,19 @@
 use crate::db::{
-    create_account_item, create_api_key_item, delete_item, get_account_item_detail, get_all_items,
-    get_api_key_item_detail, get_items_by_group, toggle_favorite, update_account_item,
-    update_api_key_item, DbConnection, ItemDetail, ItemSummary,
+    create_account_item, create_api_key_item, create_env_var_item, delete_item,
+    get_account_item_detail, get_all_items, get_api_key_item_detail, get_env_var_item_detail,
+    get_items_by_group, toggle_favorite, update_account_item, update_api_key_item,
+    update_env_var_item, DbConnection, ItemDetail, ItemSummary,
 };
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;
+use serde::{Deserialize, Serialize};
 use tauri::State;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvVarPairInput {
+    pub key: String,
+    pub value: String,
+}
 
 #[tauri::command]
 pub fn get_all_items_cmd(db: State<DbConnection>) -> Result<Vec<ItemSummary>> {
@@ -55,6 +63,9 @@ pub fn get_item_detail(
         }
         "api_key" => {
             get_api_key_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::ApiKey(d))
+        }
+        "env_var" => {
+            get_env_var_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::EnvVar(d))
         }
         _ => Err(VaultError::ItemNotFound),
     }
@@ -324,4 +335,127 @@ pub fn toggle_item_favorite(db: State<DbConnection>, id: String) -> Result<()> {
         db.0.lock()
             .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
     toggle_favorite(&conn, &id)
+}
+
+#[tauri::command]
+pub fn create_new_env_var_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    group_id: String,
+    title: String,
+    variables: Vec<EnvVarPairInput>,
+    notes: Option<String>,
+) -> Result<String> {
+    if !vault_state.is_unlocked() {
+        return Err(VaultError::VaultLocked);
+    }
+
+    if title.is_empty() || title.len() > 100 {
+        return Err(VaultError::DatabaseError(
+            "Title must be 1-100 characters".to_string(),
+        ));
+    }
+    if variables.is_empty() {
+        return Err(VaultError::DatabaseError(
+            "At least one variable is required".to_string(),
+        ));
+    }
+    for var in &variables {
+        if var.key.is_empty() || var.key.len() > 100 {
+            return Err(VaultError::DatabaseError(
+                "Variable key must be 1-100 characters".to_string(),
+            ));
+        }
+        if var.value.is_empty() || var.value.len() > 5000 {
+            return Err(VaultError::DatabaseError(
+                "Variable value must be 1-5000 characters".to_string(),
+            ));
+        }
+    }
+    if let Some(ref n) = notes {
+        if n.len() > 5000 {
+            return Err(VaultError::DatabaseError(
+                "Notes must be under 5000 characters".to_string(),
+            ));
+        }
+    }
+
+    let key = vault_state
+        .get_master_key()
+        .ok_or(VaultError::VaultLocked)?;
+    let conn =
+        db.0.lock()
+            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+
+    let vars: Vec<(String, String)> = variables
+        .iter()
+        .map(|v| (v.key.clone(), v.value.clone()))
+        .collect();
+
+    create_env_var_item(
+        &conn,
+        &group_id,
+        &title,
+        &vars,
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+#[tauri::command]
+pub fn update_existing_env_var_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    id: String,
+    title: String,
+    variables: Vec<EnvVarPairInput>,
+    notes: Option<String>,
+) -> Result<()> {
+    if !vault_state.is_unlocked() {
+        return Err(VaultError::VaultLocked);
+    }
+
+    if title.is_empty() || title.len() > 100 {
+        return Err(VaultError::DatabaseError(
+            "Title must be 1-100 characters".to_string(),
+        ));
+    }
+    if variables.is_empty() {
+        return Err(VaultError::DatabaseError(
+            "At least one variable is required".to_string(),
+        ));
+    }
+    for var in &variables {
+        if var.key.is_empty() || var.key.len() > 100 {
+            return Err(VaultError::DatabaseError(
+                "Variable key must be 1-100 characters".to_string(),
+            ));
+        }
+        if var.value.is_empty() || var.value.len() > 5000 {
+            return Err(VaultError::DatabaseError(
+                "Variable value must be 1-5000 characters".to_string(),
+            ));
+        }
+    }
+    if let Some(ref n) = notes {
+        if n.len() > 5000 {
+            return Err(VaultError::DatabaseError(
+                "Notes must be under 5000 characters".to_string(),
+            ));
+        }
+    }
+
+    let key = vault_state
+        .get_master_key()
+        .ok_or(VaultError::VaultLocked)?;
+    let conn =
+        db.0.lock()
+            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+
+    let vars: Vec<(String, String)> = variables
+        .iter()
+        .map(|v| (v.key.clone(), v.value.clone()))
+        .collect();
+
+    update_env_var_item(&conn, &id, &title, &vars, notes.as_deref(), key.as_bytes())
 }
