@@ -16,14 +16,15 @@
         "label": "main",
         "title": "SecKeyBox",
         "width": 1200,
-        "height": 800,
+        "height": 720,
         "minWidth": 900,
-        "minHeight": 600,
+        "minHeight": 550,
         "resizable": true,
         "fullscreen": false,
         "decorations": true,
         "transparent": false,
-        "center": true
+        "center": true,
+        "maximized": false
       },
       {
         "label": "quick-search",

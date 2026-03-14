@@ -174,7 +174,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   deleteGroup: async (id) => {
     try {
       await invoke('delete_existing_group', { id });
+      // Immediately remove items of this group from local state
+      set((state) => ({
+        items: state.items.filter(item => item.group_id !== id)
+      }));
       await get().loadGroups();
+      await get().loadItems();
     } catch (e) {
       console.error('[DEBUG] deleteGroup error:', e);
       set({ error: String(e) });
@@ -221,9 +226,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   deleteItem: async (id) => {
     try {
       await invoke('delete_existing_item', { id });
-      if (get().selectedItem?.id === id) {
-        set({ selectedItem: null });
-      }
+      // Immediately remove from local state for instant UI update
+      set((state) => ({
+        items: state.items.filter(item => item.id !== id),
+        selectedItem: state.selectedItem?.id === id ? null : state.selectedItem
+      }));
+      // Then reload from backend to ensure consistency
       await get().loadItems();
     } catch (e) {
       console.error('[DEBUG] deleteItem error:', e);

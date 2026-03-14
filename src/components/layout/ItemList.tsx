@@ -12,10 +12,12 @@ export function ItemList() {
   const sortBy = useUIStore((s) => s.sortBy);
   const setSortBy = useUIStore((s) => s.setSortBy);
   const showFavoritesOnly = useUIStore((s) => s.showFavoritesOnly);
+  const selectedGroupId = useUIStore((s) => s.selectedGroupId);
 
   const filteredAndSortedItems = items
     .filter((item) => {
       if (showFavoritesOnly && !item.is_favorite) return false;
+      if (selectedGroupId && item.group_id !== selectedGroupId) return false;
       if (searchQuery === '') return true;
       return (
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
