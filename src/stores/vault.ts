@@ -261,17 +261,15 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   updateApiKeyItem: async (id, data) => {
     try {
-      // 保持和 createApiKey 一致的结构体模式
+      // 后端签名是平铺参数（id, title, key_name, ...），不要用 request 包装
       await invoke('update_existing_api_key_item', {
-        request: {
-          id: id,
-          title: data.title,
-          key_name: data.keyName,
-          key_value: data.keyValue,
-          endpoint: data.endpoint,
-          auth_method: data.authMethod,
-          notes: data.notes
-        }
+        id: id,
+        title: data.title,
+        keyName: data.keyName,
+        keyValue: data.keyValue,
+        endpoint: data.endpoint,
+        authMethod: data.authMethod,
+        notes: data.notes
       });
       await get().loadItems();
       if (get().selectedItem?.id === id) {
