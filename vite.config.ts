@@ -24,7 +24,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        'quick-search': resolve(__dirname, 'quick-search.html'),
       },
     },
   },

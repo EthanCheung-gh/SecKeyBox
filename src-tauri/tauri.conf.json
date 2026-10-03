@@ -25,19 +25,6 @@
         "transparent": false,
         "center": true,
         "maximized": false
-      },
-      {
-        "label": "quick-search",
-        "title": "Quick Search",
-        "url": "quick-search.html",
-        "width": 400,
-        "height": 300,
-        "resizable": false,
-        "decorations": false,
-        "alwaysOnTop": true,
-        "skipTaskbar": true,
-        "center": true,
-        "visible": false
       }
     ],
     "security": {

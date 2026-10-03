@@ -16,19 +16,17 @@ pub use db::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use commands::*;
-    use tauri::{Listener, Manager};
-    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+    use tauri::Manager;
 
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let db_path = get_db_path(&app.handle());
             eprintln!("[DEBUG] setup: db_path = {:?}", db_path);
             eprintln!("[DEBUG] setup: db_path.exists() = {}", db_path.exists());
-            
+
             let conn = if db_path.exists() {
                 eprintln!("[DEBUG] setup: opening existing database file");
                 open_connection(&db_path).expect("Failed to open database")
@@ -36,29 +34,10 @@ pub fn run() {
                 eprintln!("[DEBUG] setup: no database, using in-memory (will create file on init)");
                 rusqlite::Connection::open_in_memory().expect("Failed to create in-memory DB")
             };
-            
+
             app.manage(DbConnection(std::sync::Mutex::new(conn)));
             app.manage(VaultState::new());
 
-            // Register Ctrl+Shift+Space global shortcut
-            let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
-            if let Err(e) = app.global_shortcut().register(shortcut) {
-                eprintln!("[WARN] Failed to register global shortcut: {:?}", e);
-            }
-
-            // Listen for shortcut press
-            let app_handle = app.handle().clone();
-            app.listen("global-shortcut://shortcut", move |_event| {
-                if let Some(window) = app_handle.get_webview_window("quick-search") {
-                    if window.is_visible().unwrap_or(false) {
-                        let _ = window.hide();
-                    } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                }
-            });
-            
             // Exit app when main window is closed
             let app_handle = app.handle().clone();
             if let Some(main_window) = app_handle.get_webview_window("main") {
@@ -68,7 +47,7 @@ pub fn run() {
                     }
                 });
             }
-            
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
