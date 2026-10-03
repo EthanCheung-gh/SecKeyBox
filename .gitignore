@@ -16,3 +16,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+.openbitfun/
+/.openbitfun/search/flashgrep-index/
+.codegraph/
