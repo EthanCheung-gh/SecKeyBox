@@ -247,6 +247,104 @@ pub fn get_password_salt(conn: &Connection) -> Result<Option<String>> {
     Ok(result.ok())
 }
 
+/// Re-encrypt one encrypted column pair of a detail table with a new key.
+/// `id_cols` are the primary-key columns used in the WHERE clause
+/// (env_var_items uses a composite key).
+fn reencrypt_column(
+    conn: &Connection,
+    table: &str,
+    id_cols: &[&str],
+    ct_col: &str,
+    nonce_col: &str,
+    old_key: &[u8; 32],
+    new_key: &[u8; 32],
+) -> Result<()> {
+    let select_sql = format!(
+        "SELECT {}, {}, {} FROM {}",
+        id_cols.join(", "),
+        ct_col,
+        nonce_col,
+        table
+    );
+    let mut stmt = conn
+        .prepare(&select_sql)
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    let id_count = id_cols.len();
+    let rows: Vec<(Vec<rusqlite::types::Value>, Vec<u8>, Vec<u8>)> = stmt
+        .query_map([], |row| {
+            let mut ids = Vec::with_capacity(id_count);
+            for i in 0..id_count {
+                ids.push(row.get::<_, rusqlite::types::Value>(i)?);
+            }
+            let ct: Option<Vec<u8>> = row.get(id_count)?;
+            let nonce: Option<Vec<u8>> = row.get(id_count + 1)?;
+            Ok((ids, ct, nonce))
+        })
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?
+        .filter_map(|r| r.ok())
+        // NULL ciphertext (optional secret) stays NULL — nothing to rotate.
+        .filter_map(|(ids, ct, nonce)| match (ct, nonce) {
+            (Some(ct), Some(nonce)) => Some((ids, ct, nonce)),
+            _ => None,
+        })
+        .collect();
+    drop(stmt);
+
+    let where_clause = id_cols
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("{} = ?{}", c, i + 3))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    let update_sql = format!(
+        "UPDATE {} SET {} = ?1, {} = ?2 WHERE {}",
+        table, ct_col, nonce_col, where_clause
+    );
+
+    for (ids, ct, nonce) in rows {
+        let mut nonce_arr = [0u8; 12];
+        nonce_arr.copy_from_slice(&nonce);
+        let plaintext = crate::crypto::decrypt(old_key, &nonce_arr, &ct)
+            .map_err(|e| VaultError::CryptoError(e.to_string()))?;
+        let reencrypted = crate::crypto::encrypt(new_key, &plaintext)
+            .map_err(|e| VaultError::CryptoError(e.to_string()))?;
+
+        let mut params: Vec<rusqlite::types::Value> = vec![
+            rusqlite::types::Value::Blob(reencrypted.ciphertext.to_vec()),
+            rusqlite::types::Value::Blob(reencrypted.nonce.to_vec()),
+        ];
+        params.extend(ids);
+        conn.execute(&update_sql, rusqlite::params_from_iter(params))
+            .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    Ok(())
+}
+
+/// Re-encrypt every sensitive field from `old_key` to `new_key` inside a
+/// single transaction, so a failure leaves the vault readable with the old
+/// key (no partial rewrite).
+pub fn reencrypt_all(conn: &Connection, old_key: &[u8; 32], new_key: &[u8; 32]) -> Result<()> {
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    reencrypt_column(&tx, "account_items", &["item_id"], "password_encrypted", "password_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "api_key_items", &["item_id"], "key_value_encrypted", "key_value_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "env_var_items", &["item_id", "key"], "value_encrypted", "value_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "database_items", &["item_id"], "password_encrypted", "password_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "ssh_items", &["item_id"], "password_encrypted", "password_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "ssh_items", &["item_id"], "passphrase_encrypted", "passphrase_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "cloud_items", &["item_id"], "secret_encrypted", "secret_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "license_items", &["item_id"], "license_key_encrypted", "license_key_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "smtp_items", &["item_id"], "password_encrypted", "password_nonce", old_key, new_key)?;
+
+    tx.commit()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    Ok(())
+}
+
 pub fn get_all_groups(conn: &Connection) -> Result<Vec<Group>> {
     let mut stmt = conn
         .prepare(
@@ -1556,4 +1654,168 @@ pub fn get_smtp_item_detail(
         from_address: smtp.6,
         notes: smtp.7,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::crypto::{decrypt, derive_key};
+
+    fn seeded_conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::init_schema(&conn).unwrap();
+        crate::db::insert_builtin_groups(&conn).unwrap();
+        conn
+    }
+
+    /// Create one item of every encrypted category and return their ids.
+    fn seed_all_types(conn: &Connection, key: &[u8; 32]) -> Vec<String> {
+        let mut ids = Vec::new();
+        ids.push(
+            create_account_item(conn, "built-in-accounts", "Acc", "user1", "secret-acc", None, None, key)
+                .unwrap(),
+        );
+        ids.push(
+            create_api_key_item(conn, "built-in-api-keys", "Key", "K", "secret-api", None, None, None, key)
+                .unwrap(),
+        );
+        ids.push(
+            create_env_var_item(
+                conn,
+                "built-in-env-vars",
+                "Env",
+                &[("A".to_string(), "secret-env".to_string())],
+                None,
+                key,
+            )
+            .unwrap(),
+        );
+        ids.push(
+            create_database_item(
+                conn, "built-in-databases", "DB", "postgresql", "h", Some(5432), None,
+                Some("u"), Some("secret-db"), None, None, key,
+            )
+            .unwrap(),
+        );
+        ids.push(
+            create_ssh_item(
+                conn, "built-in-servers", "SSH", "h", Some(22), "u",
+                Some("secret-ssh"), None, Some("secret-passphrase"), None, key,
+            )
+            .unwrap(),
+        );
+        ids.push(
+            create_cloud_item(conn, "built-in-cloud", "Cloud", "aws", "AKIA", "secret-cloud", None, None, key)
+                .unwrap(),
+        );
+        ids.push(
+            create_license_item(conn, "built-in-licenses", "Lic", "Software", "secret-license", None, None, None, key)
+                .unwrap(),
+        );
+        ids.push(
+            create_smtp_item(conn, "built-in-smtp", "SMTP", "h", Some(587), None, None, "secret-smtp", None, None, key)
+                .unwrap(),
+        );
+        ids
+    }
+
+    #[test]
+    fn reencrypt_all_rotates_every_encrypted_field() {
+        let conn = seeded_conn();
+        let old_key = derive_key("old-password-1", None).unwrap().key;
+        let new_key = derive_key("new-password-2", None).unwrap().key;
+
+        let ids = seed_all_types(&conn, &old_key);
+
+        // Sanity: readable with the old key before rotation.
+        assert_eq!(
+            get_account_item_detail(&conn, &ids[0], &old_key).unwrap().password,
+            "secret-acc"
+        );
+
+        reencrypt_all(&conn, &old_key, &new_key).unwrap();
+
+        // Every category decrypts correctly with the new key.
+        assert_eq!(get_account_item_detail(&conn, &ids[0], &new_key).unwrap().password, "secret-acc");
+        assert_eq!(get_api_key_item_detail(&conn, &ids[1], &new_key).unwrap().key_value, "secret-api");
+        assert_eq!(
+            get_env_var_item_detail(&conn, &ids[2], &new_key).unwrap().variables[0].value,
+            "secret-env"
+        );
+        assert_eq!(
+            get_database_item_detail(&conn, &ids[3], &new_key).unwrap().password.unwrap(),
+            "secret-db"
+        );
+        let ssh = get_ssh_item_detail(&conn, &ids[4], &new_key).unwrap();
+        assert_eq!(ssh.password.unwrap(), "secret-ssh");
+        assert_eq!(ssh.passphrase.unwrap(), "secret-passphrase");
+        assert_eq!(get_cloud_item_detail(&conn, &ids[5], &new_key).unwrap().secret, "secret-cloud");
+        assert_eq!(
+            get_license_item_detail(&conn, &ids[6], &new_key).unwrap().license_key,
+            "secret-license"
+        );
+        assert_eq!(get_smtp_item_detail(&conn, &ids[7], &new_key).unwrap().password, "secret-smtp");
+
+        // The old key must no longer decrypt the stored ciphertext.
+        let (ct, nonce): (Vec<u8>, Vec<u8>) = conn
+            .query_row(
+                "SELECT password_encrypted, password_nonce FROM account_items WHERE item_id = ?1",
+                [&ids[0]],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        let mut nonce_arr = [0u8; 12];
+        nonce_arr.copy_from_slice(&nonce);
+        assert!(decrypt(&old_key, &nonce_arr, &ct).is_err());
+    }
+
+    #[test]
+    fn reencrypt_all_leaves_null_secrets_null() {
+        let conn = seeded_conn();
+        let old_key = derive_key("old-password-1", None).unwrap().key;
+        let new_key = derive_key("new-password-2", None).unwrap().key;
+
+        // Database item without a password — both columns are NULL.
+        let id = create_database_item(
+            &conn, "built-in-databases", "DB", "redis", "h", None, None, None, None, None, None, &old_key,
+        )
+        .unwrap();
+
+        reencrypt_all(&conn, &old_key, &new_key).unwrap();
+
+        let (ct, nonce): (Option<Vec<u8>>, Option<Vec<u8>>) = conn
+            .query_row(
+                "SELECT password_encrypted, password_nonce FROM database_items WHERE item_id = ?1",
+                [&id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert!(ct.is_none() && nonce.is_none());
+        assert!(get_database_item_detail(&conn, &id, &new_key).unwrap().password.is_none());
+    }
+
+    #[test]
+    fn reencrypt_all_rolls_back_on_corrupt_ciphertext() {
+        let conn = seeded_conn();
+        let old_key = derive_key("old-password-1", None).unwrap().key;
+        let new_key = derive_key("new-password-2", None).unwrap().key;
+
+        let ids = seed_all_types(&conn, &old_key);
+
+        // Corrupt one row so decryption fails mid-transaction.
+        conn.execute(
+            "UPDATE smtp_items SET password_encrypted = x'DEADBEEF' WHERE item_id = ?1",
+            [&ids[7]],
+        )
+        .unwrap();
+
+        assert!(reencrypt_all(&conn, &old_key, &new_key).is_err());
+
+        // Untouched rows must still be readable with the OLD key (rollback).
+        assert_eq!(
+            get_account_item_detail(&conn, &ids[0], &old_key).unwrap().password,
+            "secret-acc"
+        );
+        assert!(get_account_item_detail(&conn, &ids[0], &new_key).is_err());
+    }
 }

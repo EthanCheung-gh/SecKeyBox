@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { ImportExportModal } from '@/components/modals/ImportExportModal';
+import { ChangePasswordModal } from '@/components/modals/ChangePasswordModal';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 
@@ -129,6 +130,7 @@ export function Sidebar() {
       
       <div className="border-t border-gray-200 p-2 dark:border-gray-700">
         <ImportExportModal />
+        <ChangePasswordModal />
         <div className="mt-2 flex items-center justify-between">
           <Button
             variant="ghost"

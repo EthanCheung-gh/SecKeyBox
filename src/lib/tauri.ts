@@ -17,6 +17,13 @@ export async function lockVault(): Promise<void> {
   return invoke<void>('lock_vault');
 }
 
+export async function changeMasterPassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  return invoke<void>('change_master_password', { currentPassword, newPassword });
+}
+
 export async function isVaultUnlocked(): Promise<boolean> {
   return invoke<boolean>('is_vault_unlocked');
 }

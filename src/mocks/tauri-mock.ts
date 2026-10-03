@@ -76,6 +76,8 @@ type MockState = {
   items: MockItem[];
   mockFs: Map<string, string>;
   lastExportPath: string | null;
+  /** 最近一次成功使用的主密码，仅用于校验「当前密码」是否正确 */
+  masterPassword: string | null;
 };
 
 const state: MockState = {
@@ -85,6 +87,7 @@ const state: MockState = {
   items: [],
   mockFs: new Map(),
   lastExportPath: null,
+  masterPassword: null,
 };
 
 // ---------- utils ----------
@@ -709,12 +712,15 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     if (state.initialized) throw vaultErr('VaultAlreadyInitialized', 'Vault already initialized');
     state.initialized = true;
     state.unlocked = true;
+    state.masterPassword = pw;
     return null;
   },
 
   unlock_vault: (a) => {
-    assertMasterPassword(str(a, 'masterPassword', 'master_password'));
+    const pw = str(a, 'masterPassword', 'master_password');
+    assertMasterPassword(pw);
     state.unlocked = true;
+    state.masterPassword = pw;
     return true;
   },
 
@@ -724,6 +730,23 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
 
   is_vault_unlocked: () => state.unlocked,
+
+  change_master_password: (a) => {
+    if (!state.unlocked) throw vaultErr('VaultLocked', 'Vault is locked');
+    const current = str(a, 'currentPassword', 'current_password');
+    const next = str(a, 'newPassword', 'new_password');
+    if (current !== state.masterPassword) {
+      throw vaultErr('InvalidPassword', 'Current password is incorrect');
+    }
+    if (next.length < 8) {
+      throw vaultErr('DatabaseError', 'New password must be at least 8 characters');
+    }
+    // 真实后端会用新密钥重加密全部密文；mock 的“加密”是恒等映射，
+    // 只需记住新密码即可保持后续校验语义一致。
+    state.masterPassword = next;
+    console.info('[SecKeyBox mock] 主密码已更新（数据无需重加密）');
+    return null;
+  },
 
   get_groups: () => [...state.groups].sort((a, b) => a.sort_order - b.sort_order),
 

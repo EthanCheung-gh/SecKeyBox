@@ -3,7 +3,7 @@ use tauri::State;
 use crate::crypto::{derive_key, verify_password, SecureKey};
 use crate::db::{
     get_db_path, get_password_hash, get_password_salt, init_schema, insert_builtin_groups,
-    open_connection, run_migrations, set_password_hash, DbConnection,
+    open_connection, reencrypt_all, run_migrations, set_password_hash, DbConnection,
 };
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;
@@ -176,4 +176,50 @@ pub fn lock_vault(vault_state: State<VaultState>) -> Result<()> {
 #[tauri::command]
 pub fn is_vault_unlocked(vault_state: State<VaultState>) -> bool {
     vault_state.is_unlocked()
+}
+
+/// Change the master password: verify the current one, derive a new key with
+/// a fresh salt and re-encrypt every sensitive field, then swap the stored
+/// hash/salt and the in-memory key. The re-encryption runs in one
+/// transaction, so a failure leaves the vault fully readable with the old
+/// password.
+#[tauri::command]
+pub fn change_master_password(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    current_password: String,
+    new_password: String,
+) -> Result<()> {
+    if !vault_state.is_unlocked() {
+        return Err(VaultError::VaultLocked);
+    }
+    if new_password.len() < 8 {
+        return Err(VaultError::DatabaseError(
+            "New password must be at least 8 characters".to_string(),
+        ));
+    }
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+
+    let stored_hash = get_password_hash(&conn)?.ok_or(VaultError::VaultNotInitialized)?;
+    if !verify_password(&current_password, &stored_hash)? {
+        return Err(VaultError::InvalidPassword);
+    }
+
+    let old_key = vault_state
+        .get_master_key()
+        .ok_or(VaultError::VaultLocked)?;
+
+    // Fresh salt for the new password.
+    let derived = derive_key(&new_password, None)?;
+
+    reencrypt_all(&conn, old_key.as_bytes(), &derived.key)?;
+    set_password_hash(&conn, &derived.hash, &derived.salt)?;
+
+    vault_state.unlock(SecureKey::new(derived.key));
+    Ok(())
 }

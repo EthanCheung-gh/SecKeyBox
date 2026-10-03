@@ -57,6 +57,7 @@ pub fn run() {
             unlock_vault,
             lock_vault,
             is_vault_unlocked,
+            change_master_password,
             get_groups,
             create_new_group,
             update_existing_group,
