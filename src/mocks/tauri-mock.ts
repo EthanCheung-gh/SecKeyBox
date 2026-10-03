@@ -21,7 +21,7 @@ import type {
   EnvVarPair,
 } from '@/types';
 
-type ItemType = 'account' | 'api_key' | 'env_var';
+type ItemType = 'account' | 'api_key' | 'env_var' | 'database' | 'ssh' | 'cloud' | 'license' | 'smtp';
 
 type MockItem = {
   id: string;
@@ -44,6 +44,27 @@ type MockItem = {
   rotation_date?: number;
   // env_var
   variables?: EnvVarPair[];
+  // database
+  db_type?: string;
+  host?: string;
+  port?: number;
+  database_name?: string;
+  connection_url?: string;
+  // ssh
+  key_path?: string;
+  passphrase?: string;
+  // cloud
+  provider?: string;
+  access_key_id?: string;
+  region?: string;
+  // license
+  software_name?: string;
+  license_key?: string;
+  bound_email?: string;
+  expiry_date?: number;
+  // smtp
+  encryption?: string;
+  from_address?: string;
   // common
   notes?: string;
 };
@@ -179,6 +200,16 @@ function subtitleOf(item: MockItem): string {
       return item.key_name ?? '';
     case 'env_var':
       return `${item.variables?.length ?? 0} variables`;
+    case 'database':
+      return `${item.host ?? ''}${item.port ? `:${item.port}` : ''}`;
+    case 'ssh':
+      return `${item.username ?? ''}@${item.host ?? ''}`;
+    case 'cloud':
+      return `${item.provider ?? ''} · ${item.access_key_id ?? ''}`;
+    case 'license':
+      return item.bound_email ?? '';
+    case 'smtp':
+      return `${item.host ?? ''}${item.port ? `:${item.port}` : ''}`;
   }
 }
 
@@ -234,6 +265,63 @@ function toDetail(item: MockItem): ItemDetail {
         variables: item.variables ?? [],
         notes: item.notes,
       };
+    case 'database':
+      return {
+        ...common,
+        type: 'database',
+        db_type: item.db_type ?? '',
+        host: item.host ?? '',
+        port: item.port,
+        database_name: item.database_name,
+        username: item.username,
+        password: item.password,
+        connection_url: item.connection_url,
+        notes: item.notes,
+      };
+    case 'ssh':
+      return {
+        ...common,
+        type: 'ssh',
+        host: item.host ?? '',
+        port: item.port,
+        username: item.username ?? '',
+        password: item.password,
+        key_path: item.key_path,
+        passphrase: item.passphrase,
+        notes: item.notes,
+      };
+    case 'cloud':
+      return {
+        ...common,
+        type: 'cloud',
+        provider: item.provider ?? '',
+        access_key_id: item.access_key_id ?? '',
+        secret: item.password ?? '',
+        region: item.region,
+        notes: item.notes,
+      };
+    case 'license':
+      return {
+        ...common,
+        type: 'license',
+        software_name: item.software_name ?? '',
+        license_key: item.license_key ?? '',
+        bound_email: item.bound_email,
+        expiry_date: item.expiry_date,
+        notes: item.notes,
+      };
+    case 'smtp':
+      return {
+        ...common,
+        type: 'smtp',
+        host: item.host ?? '',
+        port: item.port,
+        encryption: item.encryption,
+        username: item.username,
+        password: item.password ?? '',
+        from_address: item.from_address,
+        notes: item.notes,
+      };
   }
 }
 
@@ -243,9 +331,14 @@ function seedDemoData(): void {
     { id: 'built-in-accounts', name: 'Accounts', icon: '🔑', parent_id: undefined, sort_order: 0, created_at: t, updated_at: t },
     { id: 'built-in-api-keys', name: 'API Keys', icon: '🔧', parent_id: undefined, sort_order: 1, created_at: t, updated_at: t },
     { id: 'built-in-env-vars', name: 'Environment Variables', icon: '📦', parent_id: undefined, sort_order: 2, created_at: t, updated_at: t },
-    { id: uid('group'), name: 'Work', icon: '🏢', parent_id: undefined, sort_order: 3, created_at: t, updated_at: t },
+    { id: 'built-in-databases', name: 'Databases', icon: '🗄️', parent_id: undefined, sort_order: 3, created_at: t, updated_at: t },
+    { id: 'built-in-servers', name: 'SSH Servers', icon: '🖥️', parent_id: undefined, sort_order: 4, created_at: t, updated_at: t },
+    { id: 'built-in-cloud', name: 'Cloud Credentials', icon: '☁️', parent_id: undefined, sort_order: 5, created_at: t, updated_at: t },
+    { id: 'built-in-licenses', name: 'Licenses', icon: '📜', parent_id: undefined, sort_order: 6, created_at: t, updated_at: t },
+    { id: 'built-in-smtp', name: 'Email (SMTP)', icon: '✉️', parent_id: undefined, sort_order: 7, created_at: t, updated_at: t },
+    { id: uid('group'), name: 'Work', icon: '🏢', parent_id: undefined, sort_order: 8, created_at: t, updated_at: t },
   ];
-  const work = state.groups[3];
+  const work = state.groups[8];
   state.items = [
     {
       ...baseItem('account', 'built-in-accounts', 'GitHub', '🐙'),
@@ -277,6 +370,50 @@ function seedDemoData(): void {
         { key: 'API_SECRET', value: 'env-secret-do-not-share' },
       ],
       notes: '生产环境变量，轮换前勿外发',
+    },
+    {
+      ...baseItem('database', 'built-in-databases', 'App 主库'),
+      db_type: 'postgresql',
+      host: 'db.prod.internal',
+      port: 5432,
+      database_name: 'appdb',
+      username: 'app',
+      password: 'db-pass-9527',
+      connection_url: 'postgres://app:db-pass-9527@db.prod.internal:5432/appdb',
+      notes: '生产主库，只读账号另存',
+    },
+    {
+      ...baseItem('ssh', 'built-in-servers', '跳板机'),
+      host: 'bastion.prod.internal',
+      port: 22,
+      username: 'ethan',
+      password: 'ssh-pass-3344',
+      key_path: '~/.ssh/id_ed25519',
+      passphrase: 'key-pass-5566',
+    },
+    {
+      ...baseItem('cloud', 'built-in-cloud', 'AWS 主账号'),
+      provider: 'aws',
+      access_key_id: 'AKIAIOSFODNN7EXAMPLE',
+      password: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+      region: 'us-east-1',
+      notes: 'root access key，建议换 IAM',
+    },
+    {
+      ...baseItem('license', 'built-in-licenses', 'JetBrains 全家桶'),
+      software_name: 'JetBrains All Products Pack',
+      license_key: 'LICENSE-KEY-ABCD-1234-EFGH',
+      bound_email: 'ethan@example.com',
+      expiry_date: t + 365 * 86400,
+    },
+    {
+      ...baseItem('smtp', 'built-in-smtp', '通知邮件'),
+      host: 'smtp.example.com',
+      port: 587,
+      encryption: 'starttls',
+      username: 'noreply@example.com',
+      password: 'smtp-pass-7788',
+      from_address: 'noreply@example.com',
     },
   ];
 }
@@ -327,6 +464,64 @@ function buildExport(): unknown {
               value_encrypted: b64encode(v.value),
               value_nonce: randomNonceB64(),
             })),
+            notes: item.notes ?? null,
+          };
+          break;
+        case 'database':
+          encrypted = {
+            db_type: item.db_type ?? '',
+            host: item.host ?? '',
+            port: item.port ?? null,
+            database_name: item.database_name ?? null,
+            username: item.username ?? null,
+            password_encrypted: item.password != null ? b64encode(item.password) : null,
+            password_nonce: item.password != null ? randomNonceB64() : null,
+            connection_url: item.connection_url ?? null,
+            notes: item.notes ?? null,
+          };
+          break;
+        case 'ssh':
+          encrypted = {
+            host: item.host ?? '',
+            port: item.port ?? null,
+            username: item.username ?? '',
+            password_encrypted: item.password != null ? b64encode(item.password) : null,
+            password_nonce: item.password != null ? randomNonceB64() : null,
+            key_path: item.key_path ?? null,
+            passphrase_encrypted: item.passphrase != null ? b64encode(item.passphrase) : null,
+            passphrase_nonce: item.passphrase != null ? randomNonceB64() : null,
+            notes: item.notes ?? null,
+          };
+          break;
+        case 'cloud':
+          encrypted = {
+            provider: item.provider ?? '',
+            access_key_id: item.access_key_id ?? '',
+            secret_encrypted: b64encode(item.password ?? ''),
+            secret_nonce: randomNonceB64(),
+            region: item.region ?? null,
+            notes: item.notes ?? null,
+          };
+          break;
+        case 'license':
+          encrypted = {
+            software_name: item.software_name ?? '',
+            license_key_encrypted: b64encode(item.license_key ?? ''),
+            license_key_nonce: randomNonceB64(),
+            bound_email: item.bound_email ?? null,
+            expiry_date: item.expiry_date ?? null,
+            notes: item.notes ?? null,
+          };
+          break;
+        case 'smtp':
+          encrypted = {
+            host: item.host ?? '',
+            port: item.port ?? null,
+            encryption: item.encryption ?? null,
+            username: item.username ?? null,
+            password_encrypted: b64encode(item.password ?? ''),
+            password_nonce: randomNonceB64(),
+            from_address: item.from_address ?? null,
             notes: item.notes ?? null,
           };
           break;
@@ -403,7 +598,8 @@ function importFromExport(data: string, mode: string): Record<string, number> {
       continue;
     }
     const type = it.type as ItemType;
-    if (type !== 'account' && type !== 'api_key' && type !== 'env_var') continue;
+    const knownTypes: ItemType[] = ['account', 'api_key', 'env_var', 'database', 'ssh', 'cloud', 'license', 'smtp'];
+    if (!knownTypes.includes(type)) continue;
     const ed = it.encrypted_data ?? {};
     const item: MockItem = {
       id: it.id,
@@ -439,6 +635,59 @@ function importFromExport(data: string, mode: string): Record<string, number> {
         item.notes = typeof ed.notes === 'string' ? ed.notes : undefined;
         break;
       }
+      case 'database':
+        item.db_type = typeof ed.db_type === 'string' ? ed.db_type : '';
+        item.host = typeof ed.host === 'string' ? ed.host : '';
+        item.port = typeof ed.port === 'number' ? ed.port : undefined;
+        item.database_name = typeof ed.database_name === 'string' ? ed.database_name : undefined;
+        item.username = typeof ed.username === 'string' ? ed.username : undefined;
+        item.password =
+          typeof ed.password_encrypted === 'string' && ed.password_encrypted
+            ? b64decode(ed.password_encrypted)
+            : undefined;
+        item.connection_url = typeof ed.connection_url === 'string' ? ed.connection_url : undefined;
+        item.notes = typeof ed.notes === 'string' ? ed.notes : undefined;
+        break;
+      case 'ssh':
+        item.host = typeof ed.host === 'string' ? ed.host : '';
+        item.port = typeof ed.port === 'number' ? ed.port : undefined;
+        item.username = typeof ed.username === 'string' ? ed.username : '';
+        item.password =
+          typeof ed.password_encrypted === 'string' && ed.password_encrypted
+            ? b64decode(ed.password_encrypted)
+            : undefined;
+        item.key_path = typeof ed.key_path === 'string' ? ed.key_path : undefined;
+        item.passphrase =
+          typeof ed.passphrase_encrypted === 'string' && ed.passphrase_encrypted
+            ? b64decode(ed.passphrase_encrypted)
+            : undefined;
+        item.notes = typeof ed.notes === 'string' ? ed.notes : undefined;
+        break;
+      case 'cloud':
+        item.provider = typeof ed.provider === 'string' ? ed.provider : '';
+        item.access_key_id = typeof ed.access_key_id === 'string' ? ed.access_key_id : '';
+        item.password = b64decode(typeof ed.secret_encrypted === 'string' ? ed.secret_encrypted : '');
+        item.region = typeof ed.region === 'string' ? ed.region : undefined;
+        item.notes = typeof ed.notes === 'string' ? ed.notes : undefined;
+        break;
+      case 'license':
+        item.software_name = typeof ed.software_name === 'string' ? ed.software_name : '';
+        item.license_key = b64decode(
+          typeof ed.license_key_encrypted === 'string' ? ed.license_key_encrypted : '',
+        );
+        item.bound_email = typeof ed.bound_email === 'string' ? ed.bound_email : undefined;
+        item.expiry_date = typeof ed.expiry_date === 'number' ? ed.expiry_date : undefined;
+        item.notes = typeof ed.notes === 'string' ? ed.notes : undefined;
+        break;
+      case 'smtp':
+        item.host = typeof ed.host === 'string' ? ed.host : '';
+        item.port = typeof ed.port === 'number' ? ed.port : undefined;
+        item.encryption = typeof ed.encryption === 'string' ? ed.encryption : undefined;
+        item.username = typeof ed.username === 'string' ? ed.username : undefined;
+        item.password = b64decode(typeof ed.password_encrypted === 'string' ? ed.password_encrypted : '');
+        item.from_address = typeof ed.from_address === 'string' ? ed.from_address : undefined;
+        item.notes = typeof ed.notes === 'string' ? ed.notes : undefined;
+        break;
     }
     const existing = state.items.find((x) => x.id === it.id);
     if (existing) state.items.splice(state.items.indexOf(existing), 1, item);
@@ -653,6 +902,208 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     }
     item.title = title;
     item.variables = variables;
+    item.notes = optStr(a, 'notes');
+    item.updated_at = now();
+    return null;
+  },
+
+  create_new_database_item: (a) => {
+    requireUnlocked();
+    const title = str(a, 'title');
+    const host = str(a, 'host');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(str(a, 'dbType', 'db_type'), 1, 20, 'Database type');
+    checkLength(host, 1, 255, 'Host');
+    const item = baseItem('database', str(a, 'group_id', 'groupId'), title, optStr(a, 'icon'));
+    item.db_type = str(a, 'dbType', 'db_type');
+    item.host = host;
+    item.port = num(a, 'port');
+    item.database_name = optStr(a, 'databaseName', 'database_name');
+    item.username = optStr(a, 'username');
+    item.password = optStr(a, 'password');
+    item.connection_url = optStr(a, 'connectionUrl', 'connection_url');
+    item.notes = optStr(a, 'notes');
+    state.items.push(item);
+    return item.id;
+  },
+
+  update_existing_database_item: (a) => {
+    requireUnlocked();
+    const item = findItem(str(a, 'id'));
+    if (item.type !== 'database') throw vaultErr('ItemNotFound', 'Not a database item');
+    const title = str(a, 'title');
+    const host = str(a, 'host');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(host, 1, 255, 'Host');
+    const password = optStr(a, 'password');
+    item.title = title;
+    item.db_type = str(a, 'dbType', 'db_type');
+    item.host = host;
+    item.port = num(a, 'port');
+    item.database_name = optStr(a, 'databaseName', 'database_name');
+    item.username = optStr(a, 'username');
+    if (password !== undefined) item.password = password;
+    item.connection_url = optStr(a, 'connectionUrl', 'connection_url');
+    item.notes = optStr(a, 'notes');
+    item.updated_at = now();
+    return null;
+  },
+
+  create_new_ssh_item: (a) => {
+    requireUnlocked();
+    const title = str(a, 'title');
+    const host = str(a, 'host');
+    const username = str(a, 'username');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(host, 1, 255, 'Host');
+    checkLength(username, 1, 100, 'Username');
+    const item = baseItem('ssh', str(a, 'group_id', 'groupId'), title, optStr(a, 'icon'));
+    item.host = host;
+    item.port = num(a, 'port');
+    item.username = username;
+    item.password = optStr(a, 'password');
+    item.key_path = optStr(a, 'keyPath', 'key_path');
+    item.passphrase = optStr(a, 'passphrase');
+    item.notes = optStr(a, 'notes');
+    state.items.push(item);
+    return item.id;
+  },
+
+  update_existing_ssh_item: (a) => {
+    requireUnlocked();
+    const item = findItem(str(a, 'id'));
+    if (item.type !== 'ssh') throw vaultErr('ItemNotFound', 'Not an ssh item');
+    const title = str(a, 'title');
+    const host = str(a, 'host');
+    const username = str(a, 'username');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(host, 1, 255, 'Host');
+    checkLength(username, 1, 100, 'Username');
+    const password = optStr(a, 'password');
+    const passphrase = optStr(a, 'passphrase');
+    item.title = title;
+    item.host = host;
+    item.port = num(a, 'port');
+    item.username = username;
+    if (password !== undefined) item.password = password;
+    item.key_path = optStr(a, 'keyPath', 'key_path');
+    if (passphrase !== undefined) item.passphrase = passphrase;
+    item.notes = optStr(a, 'notes');
+    item.updated_at = now();
+    return null;
+  },
+
+  create_new_cloud_item: (a) => {
+    requireUnlocked();
+    const title = str(a, 'title');
+    const provider = str(a, 'provider');
+    const accessKeyId = str(a, 'accessKeyId', 'access_key_id');
+    const secret = str(a, 'secret');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(provider, 1, 30, 'Provider');
+    checkLength(accessKeyId, 1, 200, 'Access Key ID');
+    checkLength(secret, 1, 1000, 'Secret');
+    const item = baseItem('cloud', str(a, 'group_id', 'groupId'), title, optStr(a, 'icon'));
+    item.provider = provider;
+    item.access_key_id = accessKeyId;
+    item.password = secret; // mock 里 cloud 的 secret 复用 password 字段
+    item.region = optStr(a, 'region');
+    item.notes = optStr(a, 'notes');
+    state.items.push(item);
+    return item.id;
+  },
+
+  update_existing_cloud_item: (a) => {
+    requireUnlocked();
+    const item = findItem(str(a, 'id'));
+    if (item.type !== 'cloud') throw vaultErr('ItemNotFound', 'Not a cloud item');
+    const title = str(a, 'title');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(str(a, 'provider'), 1, 30, 'Provider');
+    checkLength(str(a, 'accessKeyId', 'access_key_id'), 1, 200, 'Access Key ID');
+    const secret = optStr(a, 'secret');
+    item.title = title;
+    item.provider = str(a, 'provider');
+    item.access_key_id = str(a, 'accessKeyId', 'access_key_id');
+    if (secret !== undefined) item.password = secret;
+    item.region = optStr(a, 'region');
+    item.notes = optStr(a, 'notes');
+    item.updated_at = now();
+    return null;
+  },
+
+  create_new_license_item: (a) => {
+    requireUnlocked();
+    const title = str(a, 'title');
+    const softwareName = str(a, 'softwareName', 'software_name');
+    const licenseKey = str(a, 'licenseKey', 'license_key');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(softwareName, 1, 100, 'Software name');
+    checkLength(licenseKey, 1, 1000, 'License key');
+    const item = baseItem('license', str(a, 'group_id', 'groupId'), title, optStr(a, 'icon'));
+    item.software_name = softwareName;
+    item.license_key = licenseKey;
+    item.bound_email = optStr(a, 'boundEmail', 'bound_email');
+    item.expiry_date = num(a, 'expiryDate', 'expiry_date');
+    item.notes = optStr(a, 'notes');
+    state.items.push(item);
+    return item.id;
+  },
+
+  update_existing_license_item: (a) => {
+    requireUnlocked();
+    const item = findItem(str(a, 'id'));
+    if (item.type !== 'license') throw vaultErr('ItemNotFound', 'Not a license item');
+    const title = str(a, 'title');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(str(a, 'softwareName', 'software_name'), 1, 100, 'Software name');
+    const licenseKey = optStr(a, 'licenseKey', 'license_key');
+    item.title = title;
+    item.software_name = str(a, 'softwareName', 'software_name');
+    if (licenseKey !== undefined) item.license_key = licenseKey;
+    item.bound_email = optStr(a, 'boundEmail', 'bound_email');
+    item.expiry_date = num(a, 'expiryDate', 'expiry_date');
+    item.notes = optStr(a, 'notes');
+    item.updated_at = now();
+    return null;
+  },
+
+  create_new_smtp_item: (a) => {
+    requireUnlocked();
+    const title = str(a, 'title');
+    const host = str(a, 'host');
+    const password = str(a, 'password');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(host, 1, 255, 'Host');
+    checkLength(password, 1, 1000, 'Password');
+    const item = baseItem('smtp', str(a, 'group_id', 'groupId'), title, optStr(a, 'icon'));
+    item.host = host;
+    item.port = num(a, 'port');
+    item.encryption = optStr(a, 'encryption');
+    item.username = optStr(a, 'username');
+    item.password = password;
+    item.from_address = optStr(a, 'fromAddress', 'from_address');
+    item.notes = optStr(a, 'notes');
+    state.items.push(item);
+    return item.id;
+  },
+
+  update_existing_smtp_item: (a) => {
+    requireUnlocked();
+    const item = findItem(str(a, 'id'));
+    if (item.type !== 'smtp') throw vaultErr('ItemNotFound', 'Not an smtp item');
+    const title = str(a, 'title');
+    const host = str(a, 'host');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(host, 1, 255, 'Host');
+    const password = optStr(a, 'password');
+    item.title = title;
+    item.host = host;
+    item.port = num(a, 'port');
+    item.encryption = optStr(a, 'encryption');
+    item.username = optStr(a, 'username');
+    if (password !== undefined) item.password = password;
+    item.from_address = optStr(a, 'fromAddress', 'from_address');
     item.notes = optStr(a, 'notes');
     item.updated_at = now();
     return null;

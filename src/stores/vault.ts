@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, EnvVarPair } from '@/types';
+import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail, EnvVarPair } from '@/types';
 import * as api from '@/lib/tauri'; // 保留读取操作的 api 调用
 
 interface VaultState {
@@ -8,7 +8,7 @@ interface VaultState {
   isUnlocked: boolean;
   groups: Group[];
   items: ItemSummary[];
-  selectedItem: AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail | null;
+  selectedItem: AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail | DatabaseItemDetail | SshItemDetail | CloudItemDetail | LicenseItemDetail | SmtpItemDetail | null;
   isLoading: boolean;
   error: string | null;
   
@@ -65,6 +65,105 @@ interface VaultState {
   updateEnvVarItem: (id: string, data: {
     title: string;
     variables: EnvVarPair[];
+    notes?: string;
+  }) => Promise<void>;
+  createDatabaseItem: (data: {
+    groupId: string;
+    title: string;
+    dbType: string;
+    host: string;
+    port?: number;
+    databaseName?: string;
+    username?: string;
+    password?: string;
+    connectionUrl?: string;
+    notes?: string;
+  }) => Promise<void>;
+  updateDatabaseItem: (id: string, data: {
+    title: string;
+    dbType: string;
+    host: string;
+    port?: number;
+    databaseName?: string;
+    username?: string;
+    password?: string;
+    connectionUrl?: string;
+    notes?: string;
+  }) => Promise<void>;
+  createSshItem: (data: {
+    groupId: string;
+    title: string;
+    host: string;
+    port?: number;
+    username: string;
+    password?: string;
+    keyPath?: string;
+    passphrase?: string;
+    notes?: string;
+  }) => Promise<void>;
+  updateSshItem: (id: string, data: {
+    title: string;
+    host: string;
+    port?: number;
+    username: string;
+    password?: string;
+    keyPath?: string;
+    passphrase?: string;
+    notes?: string;
+  }) => Promise<void>;
+  createCloudItem: (data: {
+    groupId: string;
+    title: string;
+    provider: string;
+    accessKeyId: string;
+    secret: string;
+    region?: string;
+    notes?: string;
+  }) => Promise<void>;
+  updateCloudItem: (id: string, data: {
+    title: string;
+    provider: string;
+    accessKeyId: string;
+    secret?: string;
+    region?: string;
+    notes?: string;
+  }) => Promise<void>;
+  createLicenseItem: (data: {
+    groupId: string;
+    title: string;
+    softwareName: string;
+    licenseKey: string;
+    boundEmail?: string;
+    expiryDate?: number;
+    notes?: string;
+  }) => Promise<void>;
+  updateLicenseItem: (id: string, data: {
+    title: string;
+    softwareName: string;
+    licenseKey?: string;
+    boundEmail?: string;
+    expiryDate?: number;
+    notes?: string;
+  }) => Promise<void>;
+  createSmtpItem: (data: {
+    groupId: string;
+    title: string;
+    host: string;
+    port?: number;
+    encryption?: string;
+    username?: string;
+    password: string;
+    fromAddress?: string;
+    notes?: string;
+  }) => Promise<void>;
+  updateSmtpItem: (id: string, data: {
+    title: string;
+    host: string;
+    port?: number;
+    encryption?: string;
+    username?: string;
+    password?: string;
+    fromAddress?: string;
     notes?: string;
   }) => Promise<void>;
   toggleItemFavorite: (id: string) => Promise<void>;
@@ -141,7 +240,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   selectItem: async (id) => {
     try {
       const item = await api.getItemDetail(id);
-      set({ selectedItem: item as AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail });
+      set({ selectedItem: item });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -310,6 +409,215 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       }
     } catch (e) {
       console.error('[DEBUG] updateEnvVarItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  createDatabaseItem: async (data) => {
+    try {
+      await invoke('create_new_database_item', {
+        groupId: data.groupId,
+        title: data.title,
+        dbType: data.dbType,
+        host: data.host,
+        port: data.port,
+        databaseName: data.databaseName,
+        username: data.username,
+        password: data.password,
+        connectionUrl: data.connectionUrl,
+        notes: data.notes
+      });
+      await get().loadItems();
+    } catch (e) {
+      console.error('[DEBUG] createDatabaseItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  updateDatabaseItem: async (id, data) => {
+    try {
+      await invoke('update_existing_database_item', {
+        id,
+        title: data.title,
+        dbType: data.dbType,
+        host: data.host,
+        port: data.port,
+        databaseName: data.databaseName,
+        username: data.username,
+        password: data.password,
+        connectionUrl: data.connectionUrl,
+        notes: data.notes
+      });
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
+    } catch (e) {
+      console.error('[DEBUG] updateDatabaseItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  createSshItem: async (data) => {
+    try {
+      await invoke('create_new_ssh_item', {
+        groupId: data.groupId,
+        title: data.title,
+        host: data.host,
+        port: data.port,
+        username: data.username,
+        password: data.password,
+        keyPath: data.keyPath,
+        passphrase: data.passphrase,
+        notes: data.notes
+      });
+      await get().loadItems();
+    } catch (e) {
+      console.error('[DEBUG] createSshItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  updateSshItem: async (id, data) => {
+    try {
+      await invoke('update_existing_ssh_item', {
+        id,
+        title: data.title,
+        host: data.host,
+        port: data.port,
+        username: data.username,
+        password: data.password,
+        keyPath: data.keyPath,
+        passphrase: data.passphrase,
+        notes: data.notes
+      });
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
+    } catch (e) {
+      console.error('[DEBUG] updateSshItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  createCloudItem: async (data) => {
+    try {
+      await invoke('create_new_cloud_item', {
+        groupId: data.groupId,
+        title: data.title,
+        provider: data.provider,
+        accessKeyId: data.accessKeyId,
+        secret: data.secret,
+        region: data.region,
+        notes: data.notes
+      });
+      await get().loadItems();
+    } catch (e) {
+      console.error('[DEBUG] createCloudItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  updateCloudItem: async (id, data) => {
+    try {
+      await invoke('update_existing_cloud_item', {
+        id,
+        title: data.title,
+        provider: data.provider,
+        accessKeyId: data.accessKeyId,
+        secret: data.secret,
+        region: data.region,
+        notes: data.notes
+      });
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
+    } catch (e) {
+      console.error('[DEBUG] updateCloudItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  createLicenseItem: async (data) => {
+    try {
+      await invoke('create_new_license_item', {
+        groupId: data.groupId,
+        title: data.title,
+        softwareName: data.softwareName,
+        licenseKey: data.licenseKey,
+        boundEmail: data.boundEmail,
+        expiryDate: data.expiryDate,
+        notes: data.notes
+      });
+      await get().loadItems();
+    } catch (e) {
+      console.error('[DEBUG] createLicenseItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  updateLicenseItem: async (id, data) => {
+    try {
+      await invoke('update_existing_license_item', {
+        id,
+        title: data.title,
+        softwareName: data.softwareName,
+        licenseKey: data.licenseKey,
+        boundEmail: data.boundEmail,
+        expiryDate: data.expiryDate,
+        notes: data.notes
+      });
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
+    } catch (e) {
+      console.error('[DEBUG] updateLicenseItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  createSmtpItem: async (data) => {
+    try {
+      await invoke('create_new_smtp_item', {
+        groupId: data.groupId,
+        title: data.title,
+        host: data.host,
+        port: data.port,
+        encryption: data.encryption,
+        username: data.username,
+        password: data.password,
+        fromAddress: data.fromAddress,
+        notes: data.notes
+      });
+      await get().loadItems();
+    } catch (e) {
+      console.error('[DEBUG] createSmtpItem error:', e);
+      set({ error: String(e) });
+    }
+  },
+
+  updateSmtpItem: async (id, data) => {
+    try {
+      await invoke('update_existing_smtp_item', {
+        id,
+        title: data.title,
+        host: data.host,
+        port: data.port,
+        encryption: data.encryption,
+        username: data.username,
+        password: data.password,
+        fromAddress: data.fromAddress,
+        notes: data.notes
+      });
+      await get().loadItems();
+      if (get().selectedItem?.id === id) {
+        await get().selectItem(id);
+      }
+    } catch (e) {
+      console.error('[DEBUG] updateSmtpItem error:', e);
       set({ error: String(e) });
     }
   },

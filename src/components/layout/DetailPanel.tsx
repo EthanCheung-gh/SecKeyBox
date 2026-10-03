@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 import { copyToClipboard } from '@/lib/tauri';
-import { maskKeyValue, formatRotationDate } from '@/lib/utils';
-import type { AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail } from '@/types';
+import { maskKeyValue, formatRotationDate, formatExpiryDate } from '@/lib/utils';
+import type { AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail } from '@/types';
 
 export function DetailPanel() {
   const selectedItem = useVaultStore((s) => s.selectedItem);
@@ -206,6 +206,145 @@ export function DetailPanel() {
     );
   };
 
+  const renderField = (label: string, value: string, mono = false, secret = false) => (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{label}</label>
+      <div className="flex items-center gap-2">
+        <span className={`font-medium dark:text-gray-100 ${mono ? 'font-mono text-sm' : ''}`}>
+          {value === '' ? '—' : secret ? '••••••••' : value}
+        </span>
+      </div>
+    </div>
+  );
+
+  const renderSecretField = (label: string, value: string | undefined, shown: boolean, onToggle: () => void, suffix?: string) => (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{label}</label>
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-sm font-medium dark:text-gray-100">
+          {value === undefined || value === '' ? '—' : shown ? value : `••••••••${suffix ?? ''}`}
+        </span>
+        {value !== undefined && value !== '' && (
+          <>
+            <Button variant="ghost" size="sm" onClick={onToggle}>
+              {shown ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => handleCopy(value)}>
+              <Copy className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderDatabaseDetail = () => {
+    const item = selectedItem as DatabaseItemDetail;
+    return (
+      <div className="space-y-4">
+        {renderField('Database Type', item.db_type)}
+        {renderField('Host', item.port ? `${item.host}:${item.port}` : item.host, true)}
+        {renderField('Database', item.database_name ?? '', true)}
+        {renderField('Username', item.username ?? '')}
+        {renderSecretField('Password', item.password, showPassword, () => setShowPassword(!showPassword))}
+        {item.connection_url && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Connection URL</label>
+            <div className="flex items-center gap-2">
+              <span className="break-all font-mono text-sm dark:text-gray-100">{item.connection_url}</span>
+              <Button variant="ghost" size="sm" onClick={() => handleCopy(item.connection_url!)}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+        {item.notes && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderSshDetail = () => {
+    const item = selectedItem as SshItemDetail;
+    return (
+      <div className="space-y-4">
+        {renderField('Host', item.port ? `${item.host}:${item.port}` : item.host, true)}
+        {renderField('Username', item.username)}
+        {renderSecretField('Password', item.password, showPassword, () => setShowPassword(!showPassword))}
+        {item.key_path && renderField('Private Key Path', item.key_path, true)}
+        {renderSecretField('Key Passphrase', item.passphrase, showKeyValue, () => setShowKeyValue(!showKeyValue))}
+        {item.notes && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderCloudDetail = () => {
+    const item = selectedItem as CloudItemDetail;
+    return (
+      <div className="space-y-4">
+        {renderField('Provider', item.provider)}
+        {renderField('Access Key ID', item.access_key_id, true)}
+        {renderSecretField('Secret', item.secret, showKeyValue, () => setShowKeyValue(!showKeyValue), item.secret.slice(-4))}
+        {item.region && renderField('Region', item.region)}
+        {item.notes && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderLicenseDetail = () => {
+    const item = selectedItem as LicenseItemDetail;
+    return (
+      <div className="space-y-4">
+        {renderField('Software', item.software_name)}
+        {renderSecretField('License Key', item.license_key, showKeyValue, () => setShowKeyValue(!showKeyValue))}
+        {item.bound_email && renderField('Bound Email', item.bound_email)}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Expiry Date</label>
+          <span className="text-gray-700 dark:text-gray-300">{formatExpiryDate(item.expiry_date)}</span>
+        </div>
+        {item.notes && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderSmtpDetail = () => {
+    const item = selectedItem as SmtpItemDetail;
+    return (
+      <div className="space-y-4">
+        {renderField('Host', item.port ? `${item.host}:${item.port}` : item.host, true)}
+        {item.encryption && renderField('Encryption', item.encryption.toUpperCase())}
+        {renderField('Username', item.username ?? '')}
+        {renderSecretField('Password', item.password, showPassword, () => setShowPassword(!showPassword))}
+        {item.from_address && renderField('From Address', item.from_address)}
+        {item.notes && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderDetail = () => {
     switch (selectedItem.type) {
       case 'account':
@@ -214,6 +353,16 @@ export function DetailPanel() {
         return renderApiKeyDetail();
       case 'env_var':
         return renderEnvVarDetail();
+      case 'database':
+        return renderDatabaseDetail();
+      case 'ssh':
+        return renderSshDetail();
+      case 'cloud':
+        return renderCloudDetail();
+      case 'license':
+        return renderLicenseDetail();
+      case 'smtp':
+        return renderSmtpDetail();
       default:
         return null;
     }

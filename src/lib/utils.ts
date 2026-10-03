@@ -27,3 +27,12 @@ export function formatRotationDate(timestamp: number | undefined): string {
   if (days === 1) return 'Rotated yesterday';
   return `Rotated ${days} days ago`;
 }
+
+export function formatExpiryDate(timestamp: number | undefined): string {
+  if (!timestamp) return 'Never expires';
+  const days = Math.floor((timestamp - Date.now() / 1000) / 86400);
+  const date = new Date(timestamp * 1000).toLocaleDateString();
+  if (days < 0) return `${date} (expired ${-days} days ago)`;
+  if (days === 0) return `${date} (expires today)`;
+  return `${date} (expires in ${days} days)`;
+}

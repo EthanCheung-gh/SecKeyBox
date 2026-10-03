@@ -10,6 +10,7 @@ pub use state::VaultState;
 pub use db::{
     init_schema, insert_builtin_groups, run_migrations,
     Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, EnvVarPair, ItemDetail,
+    DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail,
     DbConnection, open_connection, get_db_path,
 };
 
@@ -69,6 +70,16 @@ pub fn run() {
             update_existing_api_key_item,
             create_new_env_var_item,
             update_existing_env_var_item,
+            create_new_database_item,
+            update_existing_database_item,
+            create_new_ssh_item,
+            update_existing_ssh_item,
+            create_new_cloud_item,
+            update_existing_cloud_item,
+            create_new_license_item,
+            update_existing_license_item,
+            create_new_smtp_item,
+            update_existing_smtp_item,
             delete_existing_item,
             toggle_item_favorite,
             copy_to_clipboard,

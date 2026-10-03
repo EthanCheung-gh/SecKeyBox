@@ -13,7 +13,7 @@ export interface ItemSummary {
   title: string;
   subtitle: string;
   icon?: string;
-  type: 'account' | 'api_key' | 'env_var';
+  type: 'account' | 'api_key' | 'env_var' | 'database' | 'ssh' | 'cloud' | 'license' | 'smtp';
   is_favorite: boolean;
   group_id: string;
   created_at: number;
@@ -70,7 +70,94 @@ export interface EnvVarItemDetail {
   notes?: string;
 }
 
-export type ItemDetail = AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail;
+export type ItemDetail = AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail | DatabaseItemDetail | SshItemDetail | CloudItemDetail | LicenseItemDetail | SmtpItemDetail;
+
+export interface DatabaseItemDetail {
+  id: string;
+  group_id: string;
+  title: string;
+  icon?: string;
+  type: 'database';
+  is_favorite: boolean;
+  created_at: number;
+  updated_at: number;
+  db_type: string;
+  host: string;
+  port?: number;
+  database_name?: string;
+  username?: string;
+  password?: string;
+  connection_url?: string;
+  notes?: string;
+}
+
+export interface SshItemDetail {
+  id: string;
+  group_id: string;
+  title: string;
+  icon?: string;
+  type: 'ssh';
+  is_favorite: boolean;
+  created_at: number;
+  updated_at: number;
+  host: string;
+  port?: number;
+  username: string;
+  password?: string;
+  key_path?: string;
+  passphrase?: string;
+  notes?: string;
+}
+
+export interface CloudItemDetail {
+  id: string;
+  group_id: string;
+  title: string;
+  icon?: string;
+  type: 'cloud';
+  is_favorite: boolean;
+  created_at: number;
+  updated_at: number;
+  provider: string;
+  access_key_id: string;
+  secret: string;
+  region?: string;
+  notes?: string;
+}
+
+export interface LicenseItemDetail {
+  id: string;
+  group_id: string;
+  title: string;
+  icon?: string;
+  type: 'license';
+  is_favorite: boolean;
+  created_at: number;
+  updated_at: number;
+  software_name: string;
+  license_key: string;
+  bound_email?: string;
+  expiry_date?: number;
+  notes?: string;
+}
+
+export interface SmtpItemDetail {
+  id: string;
+  group_id: string;
+  title: string;
+  icon?: string;
+  type: 'smtp';
+  is_favorite: boolean;
+  created_at: number;
+  updated_at: number;
+  host: string;
+  port?: number;
+  encryption?: string;
+  username?: string;
+  password: string;
+  from_address?: string;
+  notes?: string;
+}
 
 export interface CreateAccountItemInput {
   group_id: string;

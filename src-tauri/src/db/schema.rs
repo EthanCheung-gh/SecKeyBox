@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 3;
+const SCHEMA_VERSION: i32 = 4;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -19,7 +19,7 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS items (
             id TEXT PRIMARY KEY,
             group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-            type TEXT NOT NULL CHECK(type IN ('account', 'api_key', 'env_var')),
+            type TEXT NOT NULL CHECK(type IN ('account', 'api_key', 'env_var', 'database', 'ssh', 'cloud', 'license', 'smtp')),
             title TEXT NOT NULL,
             icon TEXT,
             is_favorite INTEGER DEFAULT 0,
@@ -60,6 +60,64 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         CREATE TABLE IF NOT EXISTS vault_config (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS database_items (
+            item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+            db_type TEXT NOT NULL,
+            host TEXT NOT NULL,
+            port INTEGER,
+            database_name TEXT,
+            username TEXT,
+            password_encrypted BLOB,
+            password_nonce BLOB,
+            connection_url TEXT,
+            notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS ssh_items (
+            item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+            host TEXT NOT NULL,
+            port INTEGER,
+            username TEXT NOT NULL,
+            password_encrypted BLOB,
+            password_nonce BLOB,
+            key_path TEXT,
+            passphrase_encrypted BLOB,
+            passphrase_nonce BLOB,
+            notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS cloud_items (
+            item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+            provider TEXT NOT NULL,
+            access_key_id TEXT NOT NULL,
+            secret_encrypted BLOB NOT NULL,
+            secret_nonce BLOB NOT NULL,
+            region TEXT,
+            notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS license_items (
+            item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+            software_name TEXT NOT NULL,
+            license_key_encrypted BLOB NOT NULL,
+            license_key_nonce BLOB NOT NULL,
+            bound_email TEXT,
+            expiry_date INTEGER,
+            notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS smtp_items (
+            item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+            host TEXT NOT NULL,
+            port INTEGER,
+            encryption TEXT,
+            username TEXT,
+            password_encrypted BLOB NOT NULL,
+            password_nonce BLOB NOT NULL,
+            from_address TEXT,
+            notes TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_items_group ON items(group_id);
@@ -119,6 +177,94 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         }
     }
 
+    // Migration to version 4: widen items.type CHECK and add the five new
+    // developer-credential detail tables. SQLite cannot alter a CHECK
+    // constraint, so items is rebuilt with the new definition. Foreign keys
+    // are not enforced on this connection (open_connection never enables
+    // the pragma), so the rebuild is safe.
+    if version < 4 {
+        conn.execute_batch(
+            r#"
+            CREATE TABLE items_new (
+                id TEXT PRIMARY KEY,
+                group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+                type TEXT NOT NULL CHECK(type IN ('account', 'api_key', 'env_var', 'database', 'ssh', 'cloud', 'license', 'smtp')),
+                title TEXT NOT NULL,
+                icon TEXT,
+                is_favorite INTEGER DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            INSERT INTO items_new (id, group_id, type, title, icon, is_favorite, created_at, updated_at)
+                SELECT id, group_id, type, title, icon, is_favorite, created_at, updated_at FROM items;
+            DROP TABLE items;
+            ALTER TABLE items_new RENAME TO items;
+            CREATE INDEX IF NOT EXISTS idx_items_group ON items(group_id);
+            CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
+            CREATE INDEX IF NOT EXISTS idx_items_favorite ON items(is_favorite);
+
+            CREATE TABLE IF NOT EXISTS database_items (
+                item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+                db_type TEXT NOT NULL,
+                host TEXT NOT NULL,
+                port INTEGER,
+                database_name TEXT,
+                username TEXT,
+                password_encrypted BLOB,
+                password_nonce BLOB,
+                connection_url TEXT,
+                notes TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS ssh_items (
+                item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+                host TEXT NOT NULL,
+                port INTEGER,
+                username TEXT NOT NULL,
+                password_encrypted BLOB,
+                password_nonce BLOB,
+                key_path TEXT,
+                passphrase_encrypted BLOB,
+                passphrase_nonce BLOB,
+                notes TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS cloud_items (
+                item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+                provider TEXT NOT NULL,
+                access_key_id TEXT NOT NULL,
+                secret_encrypted BLOB NOT NULL,
+                secret_nonce BLOB NOT NULL,
+                region TEXT,
+                notes TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS license_items (
+                item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+                software_name TEXT NOT NULL,
+                license_key_encrypted BLOB NOT NULL,
+                license_key_nonce BLOB NOT NULL,
+                bound_email TEXT,
+                expiry_date INTEGER,
+                notes TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS smtp_items (
+                item_id TEXT PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+                host TEXT NOT NULL,
+                port INTEGER,
+                encryption TEXT,
+                username TEXT,
+                password_encrypted BLOB NOT NULL,
+                password_nonce BLOB NOT NULL,
+                from_address TEXT,
+                notes TEXT
+            );
+            "#,
+        )
+        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
     set_schema_version(conn, SCHEMA_VERSION)?;
     Ok(())
 }
@@ -149,10 +295,15 @@ pub fn insert_builtin_groups(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         r#"
         INSERT OR IGNORE INTO groups (id, name, icon, sort_order, created_at, updated_at)
-        VALUES 
+        VALUES
             ('built-in-accounts', 'Accounts', '🔑', 0, strftime('%s', 'now'), strftime('%s', 'now')),
             ('built-in-api-keys', 'API Keys', '🔧', 1, strftime('%s', 'now'), strftime('%s', 'now')),
-            ('built-in-env-vars', 'Environment Variables', '📦', 2, strftime('%s', 'now'), strftime('%s', 'now'));
+            ('built-in-env-vars', 'Environment Variables', '📦', 2, strftime('%s', 'now'), strftime('%s', 'now')),
+            ('built-in-databases', 'Databases', '🗄️', 3, strftime('%s', 'now'), strftime('%s', 'now')),
+            ('built-in-servers', 'SSH Servers', '🖥️', 4, strftime('%s', 'now'), strftime('%s', 'now')),
+            ('built-in-cloud', 'Cloud Credentials', '☁️', 5, strftime('%s', 'now'), strftime('%s', 'now')),
+            ('built-in-licenses', 'Licenses', '📜', 6, strftime('%s', 'now'), strftime('%s', 'now')),
+            ('built-in-smtp', 'Email (SMTP)', '✉️', 7, strftime('%s', 'now'), strftime('%s', 'now'));
         "#,
     ).map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
 

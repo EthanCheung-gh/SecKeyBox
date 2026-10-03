@@ -156,6 +156,134 @@ pub fn export_vault(db: State<DbConnection>, vault_state: State<VaultState>) -> 
                     "notes": notes,
                 })
             }
+            "database" => {
+                let row: (String, String, Option<i64>, Option<String>, Option<String>, Option<Vec<u8>>, Option<Vec<u8>>, Option<String>, Option<String>) = conn
+                    .query_row(
+                        "SELECT db_type, host, port, database_name, username, password_encrypted, password_nonce, connection_url, notes
+                         FROM database_items WHERE item_id = ?1",
+                        [&summary.id],
+                        |row| {
+                            Ok((
+                                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?,
+                                row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?,
+                            ))
+                        },
+                    )
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                serde_json::json!({
+                    "db_type": row.0,
+                    "host": row.1,
+                    "port": row.2,
+                    "database_name": row.3,
+                    "username": row.4,
+                    "password_encrypted": row.5.map(|b| STANDARD.encode(&b)),
+                    "password_nonce": row.6.map(|b| STANDARD.encode(&b)),
+                    "connection_url": row.7,
+                    "notes": row.8,
+                })
+            }
+            "ssh" => {
+                let row: (String, Option<i64>, String, Option<Vec<u8>>, Option<Vec<u8>>, Option<String>, Option<Vec<u8>>, Option<Vec<u8>>, Option<String>) = conn
+                    .query_row(
+                        "SELECT host, port, username, password_encrypted, password_nonce, key_path, passphrase_encrypted, passphrase_nonce, notes
+                         FROM ssh_items WHERE item_id = ?1",
+                        [&summary.id],
+                        |row| {
+                            Ok((
+                                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?,
+                                row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?,
+                            ))
+                        },
+                    )
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                serde_json::json!({
+                    "host": row.0,
+                    "port": row.1,
+                    "username": row.2,
+                    "password_encrypted": row.3.map(|b| STANDARD.encode(&b)),
+                    "password_nonce": row.4.map(|b| STANDARD.encode(&b)),
+                    "key_path": row.5,
+                    "passphrase_encrypted": row.6.map(|b| STANDARD.encode(&b)),
+                    "passphrase_nonce": row.7.map(|b| STANDARD.encode(&b)),
+                    "notes": row.8,
+                })
+            }
+            "cloud" => {
+                let row: (String, String, Vec<u8>, Vec<u8>, Option<String>, Option<String>) = conn
+                    .query_row(
+                        "SELECT provider, access_key_id, secret_encrypted, secret_nonce, region, notes
+                         FROM cloud_items WHERE item_id = ?1",
+                        [&summary.id],
+                        |row| {
+                            Ok((
+                                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?,
+                                row.get(4)?, row.get(5)?,
+                            ))
+                        },
+                    )
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                serde_json::json!({
+                    "provider": row.0,
+                    "access_key_id": row.1,
+                    "secret_encrypted": STANDARD.encode(&row.2),
+                    "secret_nonce": STANDARD.encode(&row.3),
+                    "region": row.4,
+                    "notes": row.5,
+                })
+            }
+            "license" => {
+                let row: (String, Vec<u8>, Vec<u8>, Option<String>, Option<i64>, Option<String>) = conn
+                    .query_row(
+                        "SELECT software_name, license_key_encrypted, license_key_nonce, bound_email, expiry_date, notes
+                         FROM license_items WHERE item_id = ?1",
+                        [&summary.id],
+                        |row| {
+                            Ok((
+                                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?,
+                                row.get(4)?, row.get(5)?,
+                            ))
+                        },
+                    )
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                serde_json::json!({
+                    "software_name": row.0,
+                    "license_key_encrypted": STANDARD.encode(&row.1),
+                    "license_key_nonce": STANDARD.encode(&row.2),
+                    "bound_email": row.3,
+                    "expiry_date": row.4,
+                    "notes": row.5,
+                })
+            }
+            "smtp" => {
+                let row: (String, Option<i64>, Option<String>, Option<String>, Vec<u8>, Vec<u8>, Option<String>, Option<String>) = conn
+                    .query_row(
+                        "SELECT host, port, encryption, username, password_encrypted, password_nonce, from_address, notes
+                         FROM smtp_items WHERE item_id = ?1",
+                        [&summary.id],
+                        |row| {
+                            Ok((
+                                row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?,
+                                row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?,
+                            ))
+                        },
+                    )
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                serde_json::json!({
+                    "host": row.0,
+                    "port": row.1,
+                    "encryption": row.2,
+                    "username": row.3,
+                    "password_encrypted": STANDARD.encode(&row.4),
+                    "password_nonce": STANDARD.encode(&row.5),
+                    "from_address": row.6,
+                    "notes": row.7,
+                })
+            }
             _ => continue,
         };
 
@@ -375,6 +503,143 @@ pub fn import_vault(
                     )
                     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
                 }
+            }
+            "database" => {
+                let ed = &item.encrypted_data;
+                let password_encrypted = ed["password_encrypted"]
+                    .as_str()
+                    .map(|s| STANDARD.decode(s))
+                    .transpose()
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+                let password_nonce = ed["password_nonce"]
+                    .as_str()
+                    .map(|s| STANDARD.decode(s))
+                    .transpose()
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                conn.execute(
+                    "INSERT OR REPLACE INTO database_items (item_id, db_type, host, port, database_name, username, password_encrypted, password_nonce, connection_url, notes)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                    rusqlite::params![
+                        item.id,
+                        ed["db_type"].as_str().unwrap_or(""),
+                        ed["host"].as_str().unwrap_or(""),
+                        ed["port"].as_i64(),
+                        ed["database_name"].as_str(),
+                        ed["username"].as_str(),
+                        password_encrypted,
+                        password_nonce,
+                        ed["connection_url"].as_str(),
+                        ed["notes"].as_str(),
+                    ],
+                )
+                .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+            }
+            "ssh" => {
+                let ed = &item.encrypted_data;
+                let decode_opt = |k: &str| -> std::result::Result<Option<Vec<u8>>, VaultError> {
+                    ed[k]
+                        .as_str()
+                        .map(|s| STANDARD.decode(s))
+                        .transpose()
+                        .map_err(|e| VaultError::DatabaseError(e.to_string()))
+                };
+                let password_encrypted = decode_opt("password_encrypted")?;
+                let password_nonce = decode_opt("password_nonce")?;
+                let passphrase_encrypted = decode_opt("passphrase_encrypted")?;
+                let passphrase_nonce = decode_opt("passphrase_nonce")?;
+
+                conn.execute(
+                    "INSERT OR REPLACE INTO ssh_items (item_id, host, port, username, password_encrypted, password_nonce, key_path, passphrase_encrypted, passphrase_nonce, notes)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                    rusqlite::params![
+                        item.id,
+                        ed["host"].as_str().unwrap_or(""),
+                        ed["port"].as_i64(),
+                        ed["username"].as_str().unwrap_or(""),
+                        password_encrypted,
+                        password_nonce,
+                        ed["key_path"].as_str(),
+                        passphrase_encrypted,
+                        passphrase_nonce,
+                        ed["notes"].as_str(),
+                    ],
+                )
+                .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+            }
+            "cloud" => {
+                let ed = &item.encrypted_data;
+                let secret_encrypted = STANDARD
+                    .decode(ed["secret_encrypted"].as_str().unwrap_or(""))
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+                let secret_nonce = STANDARD
+                    .decode(ed["secret_nonce"].as_str().unwrap_or(""))
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                conn.execute(
+                    "INSERT OR REPLACE INTO cloud_items (item_id, provider, access_key_id, secret_encrypted, secret_nonce, region, notes)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    rusqlite::params![
+                        item.id,
+                        ed["provider"].as_str().unwrap_or(""),
+                        ed["access_key_id"].as_str().unwrap_or(""),
+                        secret_encrypted,
+                        secret_nonce,
+                        ed["region"].as_str(),
+                        ed["notes"].as_str(),
+                    ],
+                )
+                .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+            }
+            "license" => {
+                let ed = &item.encrypted_data;
+                let license_key_encrypted = STANDARD
+                    .decode(ed["license_key_encrypted"].as_str().unwrap_or(""))
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+                let license_key_nonce = STANDARD
+                    .decode(ed["license_key_nonce"].as_str().unwrap_or(""))
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                conn.execute(
+                    "INSERT OR REPLACE INTO license_items (item_id, software_name, license_key_encrypted, license_key_nonce, bound_email, expiry_date, notes)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    rusqlite::params![
+                        item.id,
+                        ed["software_name"].as_str().unwrap_or(""),
+                        license_key_encrypted,
+                        license_key_nonce,
+                        ed["bound_email"].as_str(),
+                        ed["expiry_date"].as_i64(),
+                        ed["notes"].as_str(),
+                    ],
+                )
+                .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+            }
+            "smtp" => {
+                let ed = &item.encrypted_data;
+                let password_encrypted = STANDARD
+                    .decode(ed["password_encrypted"].as_str().unwrap_or(""))
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+                let password_nonce = STANDARD
+                    .decode(ed["password_nonce"].as_str().unwrap_or(""))
+                    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+                conn.execute(
+                    "INSERT OR REPLACE INTO smtp_items (item_id, host, port, encryption, username, password_encrypted, password_nonce, from_address, notes)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    rusqlite::params![
+                        item.id,
+                        ed["host"].as_str().unwrap_or(""),
+                        ed["port"].as_i64(),
+                        ed["encryption"].as_str(),
+                        ed["username"].as_str(),
+                        password_encrypted,
+                        password_nonce,
+                        ed["from_address"].as_str(),
+                        ed["notes"].as_str(),
+                    ],
+                )
+                .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
             }
             _ => {}
         }

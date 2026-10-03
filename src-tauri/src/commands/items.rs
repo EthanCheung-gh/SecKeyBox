@@ -1,8 +1,12 @@
 use crate::db::{
-    create_account_item, create_api_key_item, create_env_var_item, delete_item,
-    get_account_item_detail, get_all_items, get_api_key_item_detail, get_env_var_item_detail,
-    get_items_by_group, toggle_favorite, update_account_item, update_api_key_item,
-    update_env_var_item, DbConnection, ItemDetail, ItemSummary,
+    create_account_item, create_api_key_item, create_cloud_item, create_database_item,
+    create_env_var_item, create_license_item, create_smtp_item, create_ssh_item, delete_item,
+    get_account_item_detail, get_all_items, get_api_key_item_detail, get_cloud_item_detail,
+    get_database_item_detail, get_env_var_item_detail, get_items_by_group,
+    get_license_item_detail, get_smtp_item_detail, get_ssh_item_detail, toggle_favorite,
+    update_account_item, update_api_key_item, update_cloud_item, update_database_item,
+    update_env_var_item, update_license_item, update_smtp_item, update_ssh_item, DbConnection,
+    ItemDetail, ItemSummary,
 };
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;
@@ -84,6 +88,17 @@ pub fn get_item_detail(
         "env_var" => {
             get_env_var_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::EnvVar(d))
         }
+        "database" => {
+            get_database_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Database(d))
+        }
+        "ssh" => get_ssh_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Ssh(d)),
+        "cloud" => {
+            get_cloud_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Cloud(d))
+        }
+        "license" => {
+            get_license_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::License(d))
+        }
+        "smtp" => get_smtp_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Smtp(d)),
         _ => Err(VaultError::ItemNotFound),
     }
 }
@@ -529,4 +544,532 @@ pub fn update_existing_env_var_item(
         .collect();
 
     update_env_var_item(&conn, &id, &title, &vars, notes.as_deref(), key.as_bytes())
+}
+
+// ---------- shared validators for the new item categories ----------
+
+fn check_unlocked_and_lock(
+    vault_state: &State<VaultState>,
+) -> std::result::Result<crate::crypto::SecureKey, VaultError> {
+    if !vault_state.is_unlocked() {
+        return Err(VaultError::VaultLocked);
+    }
+    vault_state
+        .get_master_key()
+        .ok_or(VaultError::VaultLocked)
+}
+
+fn check_len(value: &str, max: usize, label: &str) -> Result<()> {
+    if value.is_empty() || value.len() > max {
+        return Err(VaultError::DatabaseError(format!(
+            "{} must be 1-{} characters",
+            label, max
+        )));
+    }
+    Ok(())
+}
+
+fn check_opt_len(value: &Option<String>, max: usize, label: &str) -> Result<()> {
+    if let Some(ref v) = value {
+        if v.len() > max {
+            return Err(VaultError::DatabaseError(format!(
+                "{} must be under {} characters",
+                label, max
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn check_port(port: &Option<i64>) -> Result<()> {
+    if let Some(p) = port {
+        if !(0..=65535).contains(p) {
+            return Err(VaultError::DatabaseError(
+                "Port must be between 0 and 65535".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+// ---------- database ----------
+
+#[tauri::command]
+pub fn create_new_database_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    group_id: String,
+    title: String,
+    db_type: String,
+    host: String,
+    port: Option<i64>,
+    database_name: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    connection_url: Option<String>,
+    notes: Option<String>,
+) -> Result<String> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&db_type, 20, "Database type")?;
+    check_len(&host, 255, "Host")?;
+    check_port(&port)?;
+    check_opt_len(&username, 100, "Username")?;
+    if let Some(ref p) = password {
+        if p.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "Password must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&connection_url, 2000, "Connection URL")?;
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    create_database_item(
+        &conn,
+        &group_id,
+        &title,
+        &db_type,
+        &host,
+        port,
+        database_name.as_deref(),
+        username.as_deref(),
+        password.as_deref(),
+        connection_url.as_deref(),
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+#[tauri::command]
+pub fn update_existing_database_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    id: String,
+    title: String,
+    db_type: String,
+    host: String,
+    port: Option<i64>,
+    database_name: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    connection_url: Option<String>,
+    notes: Option<String>,
+) -> Result<()> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&db_type, 20, "Database type")?;
+    check_len(&host, 255, "Host")?;
+    check_port(&port)?;
+    check_opt_len(&username, 100, "Username")?;
+    if let Some(ref p) = password {
+        if p.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "Password must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&connection_url, 2000, "Connection URL")?;
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    update_database_item(
+        &conn,
+        &id,
+        &title,
+        &db_type,
+        &host,
+        port,
+        database_name.as_deref(),
+        username.as_deref(),
+        password.as_deref(),
+        connection_url.as_deref(),
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+// ---------- ssh ----------
+
+#[tauri::command]
+pub fn create_new_ssh_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    group_id: String,
+    title: String,
+    host: String,
+    port: Option<i64>,
+    username: String,
+    password: Option<String>,
+    key_path: Option<String>,
+    passphrase: Option<String>,
+    notes: Option<String>,
+) -> Result<String> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&host, 255, "Host")?;
+    check_port(&port)?;
+    check_len(&username, 100, "Username")?;
+    if let Some(ref p) = password {
+        if p.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "Password must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&key_path, 500, "Key path")?;
+    if let Some(ref p) = passphrase {
+        if p.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "Passphrase must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    create_ssh_item(
+        &conn,
+        &group_id,
+        &title,
+        &host,
+        port,
+        &username,
+        password.as_deref(),
+        key_path.as_deref(),
+        passphrase.as_deref(),
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+#[tauri::command]
+pub fn update_existing_ssh_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    id: String,
+    title: String,
+    host: String,
+    port: Option<i64>,
+    username: String,
+    password: Option<String>,
+    key_path: Option<String>,
+    passphrase: Option<String>,
+    notes: Option<String>,
+) -> Result<()> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&host, 255, "Host")?;
+    check_port(&port)?;
+    check_len(&username, 100, "Username")?;
+    if let Some(ref p) = password {
+        if p.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "Password must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&key_path, 500, "Key path")?;
+    if let Some(ref p) = passphrase {
+        if p.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "Passphrase must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    update_ssh_item(
+        &conn,
+        &id,
+        &title,
+        &host,
+        port,
+        &username,
+        password.as_deref(),
+        key_path.as_deref(),
+        passphrase.as_deref(),
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+// ---------- cloud ----------
+
+#[tauri::command]
+pub fn create_new_cloud_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    group_id: String,
+    title: String,
+    provider: String,
+    access_key_id: String,
+    secret: String,
+    region: Option<String>,
+    notes: Option<String>,
+) -> Result<String> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&provider, 30, "Provider")?;
+    check_len(&access_key_id, 200, "Access Key ID")?;
+    check_len(&secret, 1000, "Secret")?;
+    check_opt_len(&region, 50, "Region")?;
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    create_cloud_item(
+        &conn,
+        &group_id,
+        &title,
+        &provider,
+        &access_key_id,
+        &secret,
+        region.as_deref(),
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+#[tauri::command]
+pub fn update_existing_cloud_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    id: String,
+    title: String,
+    provider: String,
+    access_key_id: String,
+    secret: Option<String>,
+    region: Option<String>,
+    notes: Option<String>,
+) -> Result<()> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&provider, 30, "Provider")?;
+    check_len(&access_key_id, 200, "Access Key ID")?;
+    if let Some(ref s) = secret {
+        if s.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "Secret must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&region, 50, "Region")?;
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    update_cloud_item(
+        &conn,
+        &id,
+        &title,
+        &provider,
+        &access_key_id,
+        secret.as_deref(),
+        region.as_deref(),
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+// ---------- license ----------
+
+#[tauri::command]
+pub fn create_new_license_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    group_id: String,
+    title: String,
+    software_name: String,
+    license_key: String,
+    bound_email: Option<String>,
+    expiry_date: Option<i64>,
+    notes: Option<String>,
+) -> Result<String> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&software_name, 100, "Software name")?;
+    check_len(&license_key, 1000, "License key")?;
+    check_opt_len(&bound_email, 200, "Bound email")?;
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    create_license_item(
+        &conn,
+        &group_id,
+        &title,
+        &software_name,
+        &license_key,
+        bound_email.as_deref(),
+        expiry_date,
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+#[tauri::command]
+pub fn update_existing_license_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    id: String,
+    title: String,
+    software_name: String,
+    license_key: Option<String>,
+    bound_email: Option<String>,
+    expiry_date: Option<i64>,
+    notes: Option<String>,
+) -> Result<()> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&software_name, 100, "Software name")?;
+    if let Some(ref k) = license_key {
+        if k.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "License key must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&bound_email, 200, "Bound email")?;
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    update_license_item(
+        &conn,
+        &id,
+        &title,
+        &software_name,
+        license_key.as_deref(),
+        bound_email.as_deref(),
+        expiry_date,
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+// ---------- smtp ----------
+
+#[tauri::command]
+pub fn create_new_smtp_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    group_id: String,
+    title: String,
+    host: String,
+    port: Option<i64>,
+    encryption: Option<String>,
+    username: Option<String>,
+    password: String,
+    from_address: Option<String>,
+    notes: Option<String>,
+) -> Result<String> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&host, 255, "Host")?;
+    check_port(&port)?;
+    check_opt_len(&encryption, 10, "Encryption")?;
+    check_opt_len(&username, 100, "Username")?;
+    check_len(&password, 1000, "Password")?;
+    check_opt_len(&from_address, 200, "From address")?;
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    create_smtp_item(
+        &conn,
+        &group_id,
+        &title,
+        &host,
+        port,
+        encryption.as_deref(),
+        username.as_deref(),
+        &password,
+        from_address.as_deref(),
+        notes.as_deref(),
+        key.as_bytes(),
+    )
+}
+
+#[tauri::command]
+pub fn update_existing_smtp_item(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    id: String,
+    title: String,
+    host: String,
+    port: Option<i64>,
+    encryption: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    from_address: Option<String>,
+    notes: Option<String>,
+) -> Result<()> {
+    let key = check_unlocked_and_lock(&vault_state)?;
+    check_len(&title, 100, "Title")?;
+    check_len(&host, 255, "Host")?;
+    check_port(&port)?;
+    check_opt_len(&encryption, 10, "Encryption")?;
+    check_opt_len(&username, 100, "Username")?;
+    if let Some(ref p) = password {
+        if p.len() > 1000 {
+            return Err(VaultError::DatabaseError(
+                "Password must be under 1000 characters".to_string(),
+            ));
+        }
+    }
+    check_opt_len(&from_address, 200, "From address")?;
+    check_opt_len(&notes, 5000, "Notes")?;
+
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    update_smtp_item(
+        &conn,
+        &id,
+        &title,
+        &host,
+        port,
+        encryption.as_deref(),
+        username.as_deref(),
+        password.as_deref(),
+        from_address.as_deref(),
+        notes.as_deref(),
+        key.as_bytes(),
+    )
 }
