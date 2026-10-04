@@ -1164,13 +1164,24 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
 
   search_items: (a) => {
+    // 锁定态语义与后端一致：返回空列表而非错误；
+    // 调用方需用自身解锁状态区分「已锁定」与「无搜索结果」。
     if (!state.unlocked) return [];
     const q = str(a, 'query').toLowerCase();
     const all = state.items.map(toSummary);
     if (!q) return all;
-    return all.filter(
-      (i) => i.title.toLowerCase().includes(q) || i.subtitle.toLowerCase().includes(q),
-    );
+    // 与后端 db::search_items 对齐：匹配 title / subtitle / 用户名类字段
+    return all.filter((summary) => {
+      const item = state.items.find((x) => x.id === summary.id);
+      const username = item
+        ? (item.username ?? item.key_name ?? item.access_key_id ?? item.bound_email ?? '')
+        : '';
+      return (
+        summary.title.toLowerCase().includes(q) ||
+        summary.subtitle.toLowerCase().includes(q) ||
+        username.toLowerCase().includes(q)
+      );
+    });
   },
 
   export_vault: () => {

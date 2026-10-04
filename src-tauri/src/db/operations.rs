@@ -533,6 +533,89 @@ pub fn get_items_by_group(conn: &Connection, group_id: &str) -> Result<Vec<ItemS
     Ok(items)
 }
 
+/// 按 query 过滤全部条目摘要（search_items 命令的数据层实现）。
+///
+/// 匹配字段：标题、列表副标题（与 [`get_all_items`] 的表达式一致），以及
+/// 各类条目的用户名类字段（account.username / api_key.key_name / env_var.key /
+/// database.username / ssh.username / cloud.access_key_id /
+/// license.bound_email / smtp.username）。
+///
+/// - 空白 query 返回全部条目（与 `get_all_items` 相同）。
+/// - query 中的 LIKE 通配符（`%`、`_`、`\`）会被转义为字面量，不参与匹配语义。
+/// - SQLite 的 LIKE 仅对 ASCII 字符大小写不敏感（引擎默认行为）。
+pub fn search_items(conn: &Connection, query: &str) -> Result<Vec<ItemSummary>> {
+    let query = query.trim();
+    if query.is_empty() {
+        return get_all_items(conn);
+    }
+
+    // 转义 LIKE 通配符并包上 %..%，ESCAPE '\' 声明转义字符。
+    let mut pattern = String::with_capacity(query.len() + 2);
+    pattern.push('%');
+    for c in query.chars() {
+        if c == '\\' || c == '%' || c == '_' {
+            pattern.push('\\');
+        }
+        pattern.push(c);
+    }
+    pattern.push('%');
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, subtitle, icon, type, is_favorite, group_id, created_at, updated_at
+             FROM (
+                 SELECT i.id AS id, i.title AS title,
+                     COALESCE(a.username, ak.key_name, ev.key,
+                         db.host || COALESCE(':' || db.port, ''),
+                         s.username || '@' || s.host,
+                         c.provider || ' · ' || c.access_key_id,
+                         l.bound_email,
+                         sm.host || COALESCE(':' || sm.port, ''),
+                         '') AS subtitle,
+                     COALESCE(a.username, ak.key_name, ev.key, db.username,
+                         s.username, c.access_key_id, l.bound_email, sm.username,
+                         '') AS username,
+                     i.icon AS icon, i.type AS type, i.is_favorite AS is_favorite,
+                     i.group_id AS group_id, i.created_at AS created_at,
+                     i.updated_at AS updated_at
+                 FROM items i
+                 LEFT JOIN account_items a ON i.id = a.item_id
+                 LEFT JOIN api_key_items ak ON i.id = ak.item_id
+                 LEFT JOIN env_var_items ev ON i.id = ev.item_id AND ev.sort_order = 0
+                 LEFT JOIN database_items db ON i.id = db.item_id
+                 LEFT JOIN ssh_items s ON i.id = s.item_id
+                 LEFT JOIN cloud_items c ON i.id = c.item_id
+                 LEFT JOIN license_items l ON i.id = l.item_id
+                 LEFT JOIN smtp_items sm ON i.id = sm.item_id
+             )
+             WHERE title LIKE ?1 ESCAPE '\\'
+                OR subtitle LIKE ?1 ESCAPE '\\'
+                OR username LIKE ?1 ESCAPE '\\'
+             ORDER BY title",
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    let items = stmt
+        .query_map([&pattern], |row| {
+            Ok(ItemSummary {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                subtitle: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                icon: row.get(3)?,
+                item_type: row.get(4)?,
+                is_favorite: row.get::<_, i32>(5)? != 0,
+                group_id: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    Ok(items)
+}
+
 pub fn get_account_item_detail(
     conn: &Connection,
     id: &str,

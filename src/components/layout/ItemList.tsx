@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Plus, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVaultStore } from '@/stores/vault';
@@ -5,6 +6,9 @@ import { useUIStore } from '@/stores/ui';
 
 export function ItemList() {
   const items = useVaultStore((s) => s.items);
+  const searchItems = useVaultStore((s) => s.searchItems);
+  const clearSearch = useVaultStore((s) => s.clearSearch);
+  const searchResults = useVaultStore((s) => s.searchResults);
   const selectItem = useVaultStore((s) => s.selectItem);
   const selectedItem = useVaultStore((s) => s.selectedItem);
   const openAddItemModal = useUIStore((s) => s.openAddItemModal);
@@ -14,10 +18,29 @@ export function ItemList() {
   const showFavoritesOnly = useUIStore((s) => s.showFavoritesOnly);
   const selectedGroupId = useUIStore((s) => s.selectedGroupId);
 
-  const filteredAndSortedItems = items
+  // 输入搜索词时走后端 search_items（LIKE 匹配 title/subtitle/username），防抖 200ms
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q === '') {
+      clearSearch();
+      return;
+    }
+    const timer = setTimeout(() => {
+      void searchItems(q);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchItems, clearSearch]);
+
+  // 结果带 query 快照：过期响应（慢于后续输入到达）不生效；query 已被清空时回退到已加载列表
+  const searchActive =
+    searchResults !== null && searchResults.query === searchQuery.trim();
+  const baseItems = searchActive ? searchResults.items : items;
+
+  const filteredAndSortedItems = baseItems
     .filter((item) => {
       if (showFavoritesOnly && !item.is_favorite) return false;
       if (selectedGroupId && item.group_id !== selectedGroupId) return false;
+      if (searchActive) return true; // 后端已完成 title/subtitle/username 匹配
       if (searchQuery === '') return true;
       return (
         item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -56,11 +79,15 @@ export function ItemList() {
           <Plus className="h-4 w-4" />
         </Button>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto">
         {filteredAndSortedItems.length === 0 ? (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-            {showFavoritesOnly ? 'No favorite items' : 'No items'}
+            {searchActive
+              ? 'No items match your search'
+              : showFavoritesOnly
+                ? 'No favorite items'
+                : 'No items'}
           </div>
         ) : (
           filteredAndSortedItems.map((item) => (

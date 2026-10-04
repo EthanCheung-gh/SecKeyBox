@@ -48,6 +48,16 @@ export async function getAllItems(): Promise<ItemSummary[]> {
   return invoke<ItemSummary[]>('get_all_items_cmd');
 }
 
+/**
+ * 全库搜索：后端 LIKE 匹配 title / subtitle / username 类字段。
+ *
+ * 锁定态语义：后端返回空列表而非错误；调用方（vault store）负责用
+ * isUnlocked 状态区分「已锁定」与「无结果」，锁定时不应发起本调用。
+ */
+export async function searchItems(query: string): Promise<ItemSummary[]> {
+  return invoke<ItemSummary[]>('search_items', { query });
+}
+
 export async function getItemsByGroup(groupId: string): Promise<ItemSummary[]> {
   return invoke<ItemSummary[]>('get_items_by_group_cmd', { group_id: groupId });
 }

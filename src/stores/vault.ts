@@ -8,16 +8,23 @@ interface VaultState {
   isUnlocked: boolean;
   groups: Group[];
   items: ItemSummary[];
+  /**
+   * search_items 的最新结果（带触发时的 query 快照，用于丢弃过期响应）。
+   * null 表示当前不在后端搜索状态（未输入搜索词，或已锁定/已清除）。
+   */
+  searchResults: { query: string; items: ItemSummary[] } | null;
   selectedItem: AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail | DatabaseItemDetail | SshItemDetail | CloudItemDetail | LicenseItemDetail | SmtpItemDetail | null;
   isLoading: boolean;
   error: string | null;
-  
+
   checkInitialized: () => Promise<void>;
   initialize: (password: string) => Promise<void>;
   unlock: (password: string) => Promise<void>;
   lock: () => Promise<void>;
   loadGroups: () => Promise<void>;
   loadItems: (groupId?: string) => Promise<void>;
+  searchItems: (query: string) => Promise<void>;
+  clearSearch: () => void;
   selectItem: (id: string) => Promise<void>;
   clearSelection: () => void;
   createGroup: (name: string, icon?: string) => Promise<void>;
@@ -175,6 +182,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   isUnlocked: false,
   groups: [],
   items: [],
+  searchResults: null,
   selectedItem: null,
   isLoading: false,
   error: null,
@@ -214,7 +222,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   lock: async () => {
     await api.lockVault();
-    set({ isUnlocked: false, items: [], selectedItem: null });
+    // 同步清除搜索状态，避免锁定后残留旧结果
+    set({ isUnlocked: false, items: [], selectedItem: null, searchResults: null });
   },
 
   loadGroups: async () => {
@@ -228,7 +237,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   loadItems: async (groupId) => {
     try {
-      const items = groupId 
+      const items = groupId
         ? await api.getItemsByGroup(groupId)
         : await api.getAllItems();
       set({ items });
@@ -236,6 +245,27 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       set({ error: String(e) });
     }
   },
+
+  /**
+   * 调用后端 search_items 命令（LIKE 匹配 title/subtitle/username）。
+   *
+   * 锁定态守卫：锁定时不发起查询（后端此时只会返回空列表），
+   * 以便 UI 能区分「已锁定」与「已解锁但无搜索结果」两种情况。
+   */
+  searchItems: async (query) => {
+    if (!get().isUnlocked) {
+      set({ searchResults: null });
+      return;
+    }
+    try {
+      const items = await api.searchItems(query);
+      set({ searchResults: { query, items } });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  clearSearch: () => set({ searchResults: null }),
 
   selectItem: async (id) => {
     try {
