@@ -777,9 +777,7 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
 
   delete_existing_group: (a) => {
     const id = str(a, 'id');
-    if (id.startsWith('built-in-')) {
-      throw vaultErr('DatabaseError', 'Cannot delete built-in group');
-    }
+    // 与后端一致：任何分组（含内置）都可删除，组内条目级联删除
     state.groups = state.groups.filter((g) => g.id !== id);
     state.items = state.items.filter((i) => i.group_id !== id);
     return null;

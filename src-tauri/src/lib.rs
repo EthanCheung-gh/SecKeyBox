@@ -33,7 +33,10 @@ pub fn run() {
                 open_connection(&db_path).expect("Failed to open database")
             } else {
                 eprintln!("[DEBUG] setup: no database, using in-memory (will create file on init)");
-                rusqlite::Connection::open_in_memory().expect("Failed to create in-memory DB")
+                let conn =
+                    rusqlite::Connection::open_in_memory().expect("Failed to create in-memory DB");
+                crate::db::enable_foreign_keys(&conn).expect("Failed to enable foreign keys");
+                conn
             };
 
             app.manage(DbConnection(std::sync::Mutex::new(conn)));

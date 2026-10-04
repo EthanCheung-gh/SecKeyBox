@@ -201,7 +201,18 @@ pub fn get_db_path(app_handle: &tauri::AppHandle) -> std::path::PathBuf {
 }
 
 pub fn open_connection(path: &std::path::Path) -> Result<Connection> {
-    Connection::open(path).map_err(|e| VaultError::DatabaseError(e.to_string()))
+    let conn = Connection::open(path).map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    enable_foreign_keys(&conn)?;
+    Ok(conn)
+}
+
+/// The schema relies on ON DELETE CASCADE (groups -> items -> detail rows).
+/// SQLite only enforces foreign keys when the per-connection pragma is on,
+/// so every new connection must enable it explicitly.
+pub fn enable_foreign_keys(conn: &Connection) -> Result<()> {
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    Ok(())
 }
 
 pub fn is_vault_initialized(conn: &Connection) -> Result<bool> {
@@ -420,10 +431,9 @@ pub fn update_group(
 }
 
 pub fn delete_group(conn: &Connection, id: &str) -> Result<()> {
-    if id.starts_with("built-in-") {
-        return Err(VaultError::GroupNotEmpty);
-    }
-
+    // Any group — built-in or custom — can be deleted. Items in the group are
+    // removed by the groups->items ON DELETE CASCADE (foreign keys are
+    // enabled per connection), which in turn cascades to the detail tables.
     conn.execute("DELETE FROM groups WHERE id = ?1", [id])
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
@@ -1665,6 +1675,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         crate::db::init_schema(&conn).unwrap();
         crate::db::insert_builtin_groups(&conn).unwrap();
+        enable_foreign_keys(&conn).unwrap();
         conn
     }
 
@@ -1817,5 +1828,34 @@ mod tests {
             "secret-acc"
         );
         assert!(get_account_item_detail(&conn, &ids[0], &new_key).is_err());
+    }
+
+    #[test]
+    fn delete_group_cascades_items_and_details_for_any_group() {
+        let conn = seeded_conn();
+        let key = derive_key("some-password-1", None).unwrap().key;
+
+        // Custom group with an item.
+        let custom = create_group(&conn, "Team", None, None, None).unwrap();
+        let custom_item =
+            create_account_item(&conn, &custom.id, "Team Acc", "u", "pw", None, None, &key).unwrap();
+
+        // Built-in group with an item.
+        let builtin_item =
+            create_account_item(&conn, "built-in-accounts", "Acc2", "u", "pw", None, None, &key)
+                .unwrap();
+
+        delete_group(&conn, &custom.id).unwrap();
+        assert!(get_all_groups(&conn).unwrap().iter().all(|g| g.id != custom.id));
+        assert!(get_all_items(&conn).unwrap().iter().all(|i| i.id != custom_item));
+        let orphans: i64 = conn
+            .query_row("SELECT COUNT(*) FROM account_items WHERE item_id = ?1", [&custom_item], |r| r.get(0))
+            .unwrap();
+        assert_eq!(orphans, 0, "detail row must cascade with its item");
+
+        // Built-in groups are deletable too.
+        delete_group(&conn, "built-in-accounts").unwrap();
+        assert!(get_all_groups(&conn).unwrap().iter().all(|g| g.id != "built-in-accounts"));
+        assert!(get_all_items(&conn).unwrap().iter().all(|i| i.id != builtin_item));
     }
 }

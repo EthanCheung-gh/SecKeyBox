@@ -75,45 +75,43 @@ export function Sidebar() {
               <button
                 onClick={() => handleSelectGroup(group.id)}
                 className={`flex-1 rounded-md px-3 py-2 text-left text-sm ${
-                  selectedGroupId === group.id 
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-100' 
+                  selectedGroupId === group.id
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-100'
                     : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'
                 }`}
               >
                 {group.icon || '📂'} {group.name}
               </button>
-              {!group.id.startsWith('built-in-') && (
-                <div className="relative">
-                  <button
-                    onClick={() => setMenuOpenId(menuOpenId === group.id ? null : group.id)}
-                    className="rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 dark:text-gray-400"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  {menuOpenId === group.id && (
-                    <div className="absolute right-0 top-6 z-10 w-24 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
-                      <button
-                        onClick={() => {
-                          openEditGroupModal(group.id);
-                          setMenuOpenId(null);
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-200"
-                      >
-                        Rename
-                      </button>
-                      <button
-                        onClick={() => {
-                          openDeleteConfirm('group', group.id, group.name);
-                          setMenuOpenId(null);
-                        }}
-                        className="block w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpenId(menuOpenId === group.id ? null : group.id)}
+                  className="rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 dark:text-gray-400"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+                {menuOpenId === group.id && (
+                  <div className="absolute right-0 top-6 z-10 w-24 rounded-md border border-gray-200 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+                    <button
+                      onClick={() => {
+                        openEditGroupModal(group.id);
+                        setMenuOpenId(null);
+                      }}
+                      className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-200"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      onClick={() => {
+                        openDeleteConfirm('group', group.id, group.name);
+                        setMenuOpenId(null);
+                      }}
+                      className="block w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
