@@ -1,0 +1,63 @@
+name: Release
+
+# Tag push (v*) builds installers for all three platforms and publishes
+# a GitHub Release with the artifacts attached.
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+          - platform: windows-latest
+          - platform: macos-latest
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev build-essential curl wget file patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'SecKeyBox ${{ github.ref_name }}'
+          releaseBody: |
+            Cross-platform password manager for developers.
+
+            **First launch requires creating a vault** — set your own master
+            password. The app ships with no built-in credentials, and all
+            secrets stay local in an encrypted SQLite database.
+
+            Downloads: pick the bundle for your platform
+            (`.msi`/`.exe` Windows, `.dmg`/`.app` macOS, `.deb`/`.AppImage`/`.rpm` Linux).
+          releaseDraft: false
+          prerelease: false
