@@ -329,6 +329,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] createItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -349,6 +352,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] updateItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -385,6 +391,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] createApiKeyItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -407,6 +416,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] updateApiKeyItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -422,6 +434,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] createEnvVarItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -440,6 +455,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] updateEnvVarItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -461,6 +479,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] createDatabaseItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -485,6 +506,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] updateDatabaseItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -505,6 +529,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] createSshItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -528,6 +555,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] updateSshItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -546,6 +576,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] createCloudItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -567,6 +600,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] updateCloudItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -585,6 +621,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] createLicenseItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -606,6 +645,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] updateLicenseItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -626,6 +668,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] createSmtpItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 
@@ -649,6 +694,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     } catch (e) {
       console.error('[DEBUG] updateSmtpItem error:', e);
       set({ error: String(e) });
+  
+      // 向调用方（弹窗）传播失败，避免“提交失败却关闭弹窗”的无感知体验
+      throw e;
     }
   },
 

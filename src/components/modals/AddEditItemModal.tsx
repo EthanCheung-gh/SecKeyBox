@@ -100,6 +100,7 @@ export function AddEditItemModal() {
   const setNewItemType = useUIStore((s) => s.setNewItemType);
 
   const [form, setForm] = useState<ItemForm>(emptyForm);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const set = (patch: Partial<ItemForm>) => setForm({ ...form, ...patch });
 
   const isEditing = editingItemId !== null;
@@ -222,12 +223,14 @@ export function AddEditItemModal() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     const id = editingItemId;
     const opt = (v: string) => (v === '' ? undefined : v);
     const secret = (v: string) => (v === '' ? undefined : v); // 空 = 保持原值
     const num = (v: string) => (v === '' ? undefined : Number(v));
 
-    switch (currentType) {
+    try {
+      switch (currentType) {
       case 'account':
         if (isEditing) {
           await vault.updateItem(id!, {
@@ -416,6 +419,12 @@ export function AddEditItemModal() {
           });
         }
         break;
+    }
+    } catch (err) {
+      // store 已写入全局 error；这里在弹窗内直接展示，且不关闭弹窗，
+      // 避免出现“提交失败却看起来成功”的无感知体验。
+      setSubmitError(err instanceof Error ? err.message : String(err));
+      return;
     }
     handleClose();
   };
@@ -668,7 +677,16 @@ export function AddEditItemModal() {
               <Input type="email" value={form.boundEmail} onChange={(e) => set({ boundEmail: e.target.value })} />
             </Field>
             <Field label="Expiry Date">
-              <Input type="date" value={form.expiryDate} onChange={(e) => set({ expiryDate: e.target.value })} />
+              <Input
+                type="date"
+                value={form.expiryDate}
+                onChange={(e) => {
+                  set({ expiryDate: e.target.value });
+                  // WebKitGTK (Linux) 的日历弹层在选中日期后不会自动收起，
+                  // 主动移开焦点以关闭它。
+                  e.target.blur();
+                }}
+              />
             </Field>
           </>
         );
@@ -710,6 +728,11 @@ export function AddEditItemModal() {
   return (
     <Dialog open={isOpen} onClose={handleClose} title={isEditing ? 'Edit Item' : 'Add Item'}>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {submitError && (
+          <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            {submitError}
+          </div>
+        )}
         {!isEditing && (
           <Field label="Type">
             <ItemTypeSelect value={currentType} onChange={setNewItemType} />

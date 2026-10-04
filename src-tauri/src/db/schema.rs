@@ -135,11 +135,6 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
 pub fn run_migrations(conn: &Connection) -> Result<()> {
     let version = get_schema_version(conn)?;
 
-    // Already at latest version, nothing to migrate
-    if version >= SCHEMA_VERSION {
-        return Ok(());
-    }
-
     // Migration from version 0 or 1 to 2
     if version < 2 {
         // Check if auth_method column exists
@@ -179,12 +174,16 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
 
     // Migration to version 4: widen items.type CHECK and add the five new
     // developer-credential detail tables. SQLite cannot alter a CHECK
-    // constraint, so items is rebuilt with the new definition. Foreign keys
-    // are not enforced on this connection (open_connection never enables
-    // the pragma), so the rebuild is safe.
+    // constraint, so items is rebuilt with the new definition. The rebuild
+    // must run with foreign keys disabled: DROP TABLE items would otherwise
+    // cascade-delete every detail row before items_new takes its place.
     if version < 4 {
         conn.execute_batch(
             r#"
+            PRAGMA foreign_keys = OFF;
+
+            BEGIN;
+
             CREATE TABLE items_new (
                 id TEXT PRIMARY KEY,
                 group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
@@ -260,12 +259,17 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 from_address TEXT,
                 notes TEXT
             );
+
+            COMMIT;
+
+            PRAGMA foreign_keys = ON;
             "#,
         )
         .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
     }
 
     set_schema_version(conn, SCHEMA_VERSION)?;
+    cleanup_orphan_items(conn)?;
     Ok(())
 }
 
@@ -279,16 +283,40 @@ fn set_schema_version(conn: &Connection, version: i32) -> Result<()> {
 }
 
 pub fn get_schema_version(conn: &Connection) -> Result<i32> {
-    let version: std::result::Result<i32, _> = conn.query_row(
+    // schema_version is stored as TEXT ("4"); reading it directly into i32
+    // fails the type conversion and silently reported 0, which re-ran every
+    // migration on every launch. Read as String and parse.
+    let version: std::result::Result<String, _> = conn.query_row(
         "SELECT value FROM vault_config WHERE key = 'schema_version'",
         [],
         |row| row.get(0),
     );
 
     match version {
-        Ok(v) => Ok(v),
+        Ok(v) => Ok(v.trim().parse::<i32>().unwrap_or(0)),
         Err(_) => Ok(0),
     }
+}
+
+/// Remove items rows whose detail rows are gone (e.g. left behind by a
+/// partially failed creation before creation was made transactional, or by
+/// the buggy v4 rebuild that cascaded detail rows away while items survived).
+/// Runs on every launch after migrations; cheap (8 indexed NOT IN probes).
+fn cleanup_orphan_items(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        r#"
+        DELETE FROM items WHERE type = 'account'  AND id NOT IN (SELECT item_id FROM account_items);
+        DELETE FROM items WHERE type = 'api_key'  AND id NOT IN (SELECT item_id FROM api_key_items);
+        DELETE FROM items WHERE type = 'env_var'  AND id NOT IN (SELECT item_id FROM env_var_items);
+        DELETE FROM items WHERE type = 'database' AND id NOT IN (SELECT item_id FROM database_items);
+        DELETE FROM items WHERE type = 'ssh'      AND id NOT IN (SELECT item_id FROM ssh_items);
+        DELETE FROM items WHERE type = 'cloud'    AND id NOT IN (SELECT item_id FROM cloud_items);
+        DELETE FROM items WHERE type = 'license'  AND id NOT IN (SELECT item_id FROM license_items);
+        DELETE FROM items WHERE type = 'smtp'     AND id NOT IN (SELECT item_id FROM smtp_items);
+        "#,
+    )
+    .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    Ok(())
 }
 
 pub fn insert_builtin_groups(conn: &Connection) -> Result<()> {

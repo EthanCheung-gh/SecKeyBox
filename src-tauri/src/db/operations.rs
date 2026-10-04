@@ -739,26 +739,28 @@ pub fn create_api_key_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
+    with_tx(conn, |tx| {
+        let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
 
     let encrypted = crate::crypto::encrypt(key, key_value.as_bytes())
         .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at) 
          VALUES (?1, ?2, 'api_key', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO api_key_items (item_id, key_name, key_value_encrypted, key_value_nonce, endpoint, auth_method, notes, rotation_date) 
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![id, key_name, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), endpoint, auth_method, notes, now],
     ).map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     Ok(id)
+    })
 }
 
 pub fn update_api_key_item(
@@ -808,26 +810,28 @@ pub fn create_account_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
+    with_tx(conn, |tx| {
+        let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
 
     let encrypted = crate::crypto::encrypt(key, password.as_bytes())
         .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at) 
          VALUES (?1, ?2, 'account', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO account_items (item_id, username, password_encrypted, password_nonce, website, notes) 
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![id, username, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), website, notes],
     ).map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     Ok(id)
+    })
 }
 
 pub fn update_account_item(
@@ -962,10 +966,11 @@ pub fn create_env_var_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
+    with_tx(conn, |tx| {
+        let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at) 
          VALUES (?1, ?2, 'env_var', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
@@ -976,7 +981,7 @@ pub fn create_env_var_item(
         let encrypted = crate::crypto::encrypt(key, var_value.as_bytes())
             .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
-        conn.execute(
+        tx.execute(
             "INSERT INTO env_var_items (item_id, key, value_encrypted, value_nonce, sort_order, notes) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
@@ -992,6 +997,7 @@ pub fn create_env_var_item(
     }
 
     Ok(id)
+    })
 }
 
 pub fn update_env_var_item(
@@ -1042,6 +1048,22 @@ fn chrono_timestamp() -> i64 {
         .as_secs() as i64
 }
 
+/// Run `f` inside a transaction so an item is never left behind without its
+/// detail row (a half-written creation used to produce an items row whose
+/// missing detail made the item und-openable after relaunch).
+fn with_tx<T>(
+    conn: &Connection,
+    f: impl FnOnce(&rusqlite::Transaction) -> Result<T>,
+) -> Result<T> {
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    let out = f(&tx)?;
+    tx.commit()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    Ok(out)
+}
+
 // ---------- database ----------
 
 pub fn create_database_item(
@@ -1058,10 +1080,11 @@ pub fn create_database_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
+    with_tx(conn, |tx| {
+        let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at)
          VALUES (?1, ?2, 'database', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
@@ -1077,7 +1100,7 @@ pub fn create_database_item(
         None => None,
     };
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO database_items (item_id, db_type, host, port, database_name, username, password_encrypted, password_nonce, connection_url, notes)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
@@ -1096,6 +1119,7 @@ pub fn create_database_item(
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     Ok(id)
+    })
 }
 
 pub fn update_database_item(
@@ -1207,10 +1231,11 @@ pub fn create_ssh_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
+    with_tx(conn, |tx| {
+        let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at)
          VALUES (?1, ?2, 'ssh', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
@@ -1234,7 +1259,7 @@ pub fn create_ssh_item(
         None => None,
     };
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO ssh_items (item_id, host, port, username, password_encrypted, password_nonce, key_path, passphrase_encrypted, passphrase_nonce, notes)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
@@ -1253,6 +1278,7 @@ pub fn create_ssh_item(
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     Ok(id)
+    })
 }
 
 pub fn update_ssh_item(
@@ -1390,20 +1416,21 @@ pub fn create_cloud_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
+    with_tx(conn, |tx| {
+        let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
 
     let encrypted = crate::crypto::encrypt(key, secret.as_bytes())
         .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at)
          VALUES (?1, ?2, 'cloud', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO cloud_items (item_id, provider, access_key_id, secret_encrypted, secret_nonce, region, notes)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![id, provider, access_key_id, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), region, notes],
@@ -1411,6 +1438,7 @@ pub fn create_cloud_item(
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     Ok(id)
+    })
 }
 
 pub fn update_cloud_item(
@@ -1512,20 +1540,21 @@ pub fn create_license_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
+    with_tx(conn, |tx| {
+        let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
 
     let encrypted = crate::crypto::encrypt(key, license_key.as_bytes())
         .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at)
          VALUES (?1, ?2, 'license', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO license_items (item_id, software_name, license_key_encrypted, license_key_nonce, bound_email, expiry_date, notes)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![id, software_name, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), bound_email, expiry_date, notes],
@@ -1533,6 +1562,7 @@ pub fn create_license_item(
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     Ok(id)
+    })
 }
 
 pub fn update_license_item(
@@ -1636,20 +1666,21 @@ pub fn create_smtp_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
-    let id = Uuid::new_v4().to_string();
+    with_tx(conn, |tx| {
+        let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
 
     let encrypted = crate::crypto::encrypt(key, password.as_bytes())
         .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at)
          VALUES (?1, ?2, 'smtp', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
-    conn.execute(
+    tx.execute(
         "INSERT INTO smtp_items (item_id, host, port, encryption, username, password_encrypted, password_nonce, from_address, notes)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![id, host, port, encryption, username, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), from_address, notes],
@@ -1657,6 +1688,7 @@ pub fn create_smtp_item(
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     Ok(id)
+    })
 }
 
 pub fn update_smtp_item(
@@ -1753,6 +1785,7 @@ pub fn get_smtp_item_detail(
 mod tests {
     use super::*;
     use crate::crypto::{decrypt, derive_key};
+    use crate::db::{init_schema, insert_builtin_groups, run_migrations};
 
     fn seeded_conn() -> Connection {
         let conn = Connection::open_in_memory().unwrap();
@@ -1913,9 +1946,102 @@ mod tests {
         assert!(get_account_item_detail(&conn, &ids[0], &new_key).is_err());
     }
 
+    /// Simulate the full app lifecycle against a real db file:
+    /// first launch (initialize + create item) → close → second launch
+    /// (unlock verifies password, re-derives key from stored salt, opens item).
     #[test]
-    fn delete_group_cascades_items_and_details_for_any_group() {
-        let conn = seeded_conn();
+    fn second_launch_can_open_items_created_in_first_launch() {
+        let dir = std::env::temp_dir().join(format!("seckeybox-lifecycle-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let db_path = dir.join("vault.db");
+
+        let password = "lifecycle-pw";
+
+        // ---- first launch: initialize vault and create a license item ----
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            enable_foreign_keys(&conn).unwrap();
+            init_schema(&conn).unwrap();
+            run_migrations(&conn).unwrap();
+            insert_builtin_groups(&conn).unwrap();
+
+            let derived = derive_key(password, None).unwrap();
+            set_password_hash(&conn, &derived.hash, &derived.salt).unwrap();
+
+            create_license_item(
+                &conn,
+                "built-in-licenses",
+                "Lens",
+                "Lens IDE",
+                "lens-license-key",
+                Some("dev@example.com"),
+                Some(1_800_000_000),
+                None,
+                &derived.key,
+            )
+            .unwrap();
+        } // connection dropped, like closing the app
+
+        // ---- second launch: unlock and open the item detail ----
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            enable_foreign_keys(&conn).unwrap();
+
+            let count = |tag: &str| -> i64 {
+                let n: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM license_items", [], |r| r.get(0))
+                    .unwrap();
+                eprintln!("[probe] {tag}: license_items rows = {n}");
+                n
+            };
+
+            let version_before: String = conn
+                .query_row(
+                    "SELECT value FROM vault_config WHERE key = 'schema_version'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap_or_else(|_| "<missing>".to_string());
+            let fk: i64 = conn
+                .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+                .unwrap();
+            eprintln!("[probe] version_before={version_before} foreign_keys={fk}");
+
+            count("after open+fk");
+
+            run_migrations(&conn).unwrap();
+
+            let version_after: String = conn
+                .query_row(
+                    "SELECT value FROM vault_config WHERE key = 'schema_version'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap_or_else(|_| "<missing>".to_string());
+            count("after run_migrations");
+            let version_after = version_after;
+
+            let stored_hash = get_password_hash(&conn).unwrap().unwrap();
+            let stored_salt = get_password_salt(&conn).unwrap().unwrap();
+            assert!(crate::crypto::verify_password(password, &stored_hash).unwrap());
+
+            let key = derive_key(password, Some(&stored_salt)).unwrap().key;
+
+            let items = get_all_items(&conn).unwrap();
+            assert_eq!(items.len(), 1);
+            let id = items[0].id.clone();
+
+            let detail = get_license_item_detail(&conn, &id, &key).unwrap();
+            assert_eq!(detail.title, "Lens");
+            assert_eq!(detail.license_key, "lens-license-key");
+            assert_eq!(detail.expiry_date, Some(1_800_000_000));
+        }
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn delete_group_cascades_items_and_details_for_any_group() {        let conn = seeded_conn();
         let key = derive_key("some-password-1", None).unwrap().key;
 
         // Custom group with an item.
