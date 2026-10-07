@@ -20,6 +20,12 @@ export interface ItemSummary {
   updated_at: number;
 }
 
+export interface SecretHistoryEntry {
+  field: string;
+  value: string;
+  changed_at: number;
+}
+
 export interface AccountItemDetail {
   id: string;
   group_id: string;
@@ -33,6 +39,38 @@ export interface AccountItemDetail {
   password: string;
   website?: string;
   notes?: string;
+  totp_secret?: string;
+  secret_history: SecretHistoryEntry[];
+}
+
+export interface AuditFinding {
+  item_id: string;
+  title: string;
+  detail: string;
+}
+
+export interface ReusedSecretGroup {
+  secret_hint: string;
+  items: AuditFinding[];
+}
+
+export interface SecurityAudit {
+  weak_passwords: AuditFinding[];
+  reused_secrets: ReusedSecretGroup[];
+  stale_rotations: AuditFinding[];
+  missing_2fa: AuditFinding[];
+  expiring_licenses: AuditFinding[];
+}
+
+export interface ImportToolsResult {
+  groups_imported: number;
+  items_imported: number;
+  items_skipped: number;
+}
+
+export interface TotpCode {
+  code: string;
+  seconds_remaining: number;
 }
 
 export interface ApiKeyItemDetail {
@@ -50,6 +88,7 @@ export interface ApiKeyItemDetail {
   auth_method?: string;
   rotation_date?: number;
   notes?: string;
+  secret_history: SecretHistoryEntry[];
 }
 
 export interface EnvVarPair {
@@ -89,6 +128,7 @@ export interface DatabaseItemDetail {
   password?: string;
   connection_url?: string;
   notes?: string;
+  secret_history: SecretHistoryEntry[];
 }
 
 export interface SshItemDetail {
@@ -107,6 +147,7 @@ export interface SshItemDetail {
   key_path?: string;
   passphrase?: string;
   notes?: string;
+  secret_history: SecretHistoryEntry[];
 }
 
 export interface CloudItemDetail {
@@ -123,6 +164,7 @@ export interface CloudItemDetail {
   secret: string;
   region?: string;
   notes?: string;
+  secret_history: SecretHistoryEntry[];
 }
 
 export interface LicenseItemDetail {
@@ -139,6 +181,7 @@ export interface LicenseItemDetail {
   bound_email?: string;
   expiry_date?: number;
   notes?: string;
+  secret_history: SecretHistoryEntry[];
 }
 
 export interface SmtpItemDetail {
@@ -157,6 +200,7 @@ export interface SmtpItemDetail {
   password: string;
   from_address?: string;
   notes?: string;
+  secret_history: SecretHistoryEntry[];
 }
 
 export interface CreateAccountItemInput {

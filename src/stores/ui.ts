@@ -11,11 +11,14 @@ interface UIState {
   editingItemId: string | null;
   deleteConfirmTarget: { type: 'group' | 'item'; id: string; name: string } | null;
   newItemType: 'account' | 'api_key' | 'env_var' | 'database' | 'ssh' | 'cloud' | 'license' | 'smtp';
-  
+  isSecurityPanelOpen: boolean;
+
   setSelectedGroup: (id: string | null) => void;
   setShowFavoritesOnly: (show: boolean) => void;
   setSearchQuery: (query: string) => void;
   setSortBy: (sort: UIState['sortBy']) => void;
+  openSecurityPanel: () => void;
+  closeSecurityPanel: () => void;
   openAddItemModal: () => void;
   closeAddItemModal: () => void;
   openAddGroupModal: () => void;
@@ -40,6 +43,7 @@ export const useUIStore = create<UIState>((set) => ({
   editingItemId: null,
   deleteConfirmTarget: null,
   newItemType: 'account',
+  isSecurityPanelOpen: false,
 
   setSelectedGroup: (id) => set({ selectedGroupId: id, showFavoritesOnly: false }),
   setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show, selectedGroupId: null }),
@@ -56,4 +60,6 @@ export const useUIStore = create<UIState>((set) => ({
   openDeleteConfirm: (type, id, name) => set({ deleteConfirmTarget: { type, id, name } }),
   closeDeleteConfirm: () => set({ deleteConfirmTarget: null }),
   setNewItemType: (type) => set({ newItemType: type }),
+  openSecurityPanel: () => set({ isSecurityPanelOpen: true }),
+  closeSecurityPanel: () => set({ isSecurityPanelOpen: false }),
 }));

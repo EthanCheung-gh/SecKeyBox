@@ -5,6 +5,8 @@ import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 import { copyToClipboard } from '@/lib/tauri';
 import { maskKeyValue, formatRotationDate, formatExpiryDate } from '@/lib/utils';
+import { TotpCode } from '@/components/ui/totp-code';
+import { SecretHistoryList } from '@/components/ui/secret-history-list';
 import type { AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail } from '@/types';
 
 export function DetailPanel() {
@@ -80,6 +82,8 @@ export function DetailPanel() {
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
+
+        <TotpCode itemId={item.id} secret={item.totp_secret} />
       </div>
     );
   };
@@ -397,6 +401,9 @@ export function DetailPanel() {
       </div>
 
       {renderDetail()}
+      {selectedItem.type !== 'account' && selectedItem.type !== 'env_var' && (
+        <SecretHistoryList entries={selectedItem.secret_history} />
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -171,6 +171,22 @@ export async function copyToClipboard(text: string): Promise<void> {
 
 export async function clearClipboard(): Promise<void> {
   return invoke<void>('clear_clipboard');
+}
+
+export async function getTotpCode(id: string): Promise<TotpCode> {
+  return invoke<TotpCode>('get_totp_code', { id });
+}
+
+export async function runSecurityAudit(): Promise<SecurityAudit> {
+  return invoke<SecurityAudit>('security_audit');
+}
+
+export async function importCsv(data: string, groupId: string): Promise<ImportToolsResult> {
+  return invoke<ImportToolsResult>('import_csv', { data, groupId });
+}
+
+export async function importEnv(groupId: string, title: string, content: string): Promise<ImportToolsResult> {
+  return invoke<ImportToolsResult>('import_env', { groupId, title, content });
 }
 
 export interface ImportResult {

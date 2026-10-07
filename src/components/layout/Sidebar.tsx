@@ -1,4 +1,4 @@
-import { Plus, Lock, MoreVertical } from 'lucide-react';
+import { Plus, Lock, MoreVertical, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -20,6 +20,7 @@ export function Sidebar() {
   const openAddGroupModal = useUIStore((s) => s.openAddGroupModal);
   const openEditGroupModal = useUIStore((s) => s.openEditGroupModal);
   const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm);
+  const openSecurityPanel = useUIStore((s) => s.openSecurityPanel);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   const handleSelectGroup = (id: string | null) => {
@@ -127,6 +128,14 @@ export function Sidebar() {
       </div>
       
       <div className="border-t border-gray-200 p-2 dark:border-gray-700">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-gray-500 dark:text-gray-400"
+          onClick={openSecurityPanel}
+        >
+          <ShieldCheck className="mr-2 h-4 w-4" /> 安全体检
+        </Button>
         <ImportExportModal />
         <ChangePasswordModal />
         <div className="mt-2 flex items-center justify-between">

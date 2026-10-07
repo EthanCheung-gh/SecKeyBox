@@ -37,6 +37,7 @@ interface VaultState {
     password: string;
     website?: string;
     notes?: string;
+    totpSecret?: string;
   }) => Promise<void>;
   updateItem: (id: string, data: {
     title: string;
@@ -44,6 +45,8 @@ interface VaultState {
     password?: string;
     website?: string;
     notes?: string;
+    /** None = 保持不变，'' = 清除，其他 = 设置（后端约定） */
+    totpSecret?: string;
   }) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
   createApiKeyItem: (data: {
@@ -323,7 +326,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         username: data.username,
         password: data.password,
         website: data.website,
-        notes: data.notes
+        notes: data.notes,
+        totpSecret: data.totpSecret
       });
       await get().loadItems();
     } catch (e) {
@@ -343,7 +347,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         username: data.username,
         password: data.password,
         website: data.website,
-        notes: data.notes
+        notes: data.notes,
+        totpSecret: data.totpSecret
       });
       await get().loadItems();
       if (get().selectedItem?.id === id) {

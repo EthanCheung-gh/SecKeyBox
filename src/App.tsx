@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
 import { useVaultStore } from '@/stores/vault';
+import { useUIStore } from '@/stores/ui';
 import { useActivityTracker } from '@/hooks/useActivityTracker';
 import { SetupScreen } from '@/components/unlock/SetupScreen';
 import { UnlockScreen } from '@/components/unlock/UnlockScreen';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ItemList } from '@/components/layout/ItemList';
 import { DetailPanel } from '@/components/layout/DetailPanel';
+import { SecurityPanel } from '@/components/security/SecurityPanel';
 import { AddEditItemModal } from '@/components/modals/AddEditItemModal';
 import { AddGroupModal } from '@/components/modals/AddGroupModal';
 import { EditGroupModal } from '@/components/modals/EditGroupModal';
@@ -14,6 +16,8 @@ import { DeleteConfirmModal } from '@/components/modals/DeleteConfirmModal';
 function MainApp() {
   useActivityTracker();
   const loadItems = useVaultStore((s) => s.loadItems);
+  const isSecurityPanelOpen = useUIStore((s) => s.isSecurityPanelOpen);
+  const closeSecurityPanel = useUIStore((s) => s.closeSecurityPanel);
 
   useEffect(() => {
     loadItems();
@@ -22,8 +26,14 @@ function MainApp() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <ItemList />
-      <DetailPanel />
+      {isSecurityPanelOpen ? (
+        <SecurityPanel onClose={closeSecurityPanel} />
+      ) : (
+        <>
+          <ItemList />
+          <DetailPanel />
+        </>
+      )}
       <AddEditItemModal />
       <AddGroupModal />
       <EditGroupModal />

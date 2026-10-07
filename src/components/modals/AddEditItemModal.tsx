@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog } from '@/components/ui/dialog';
 import { PasswordStrength } from '@/components/ui/password-strength';
+import { PasswordGenerator } from '@/components/ui/password-generator';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 import type { EnvVarPair } from '@/types';
@@ -17,6 +18,8 @@ const emptyForm = {
   username: '',
   password: '',
   website: '',
+  // account: 两步验证（base32 secret；编辑时空串表示清除）
+  totpSecret: '',
   // api_key
   keyName: '',
   keyValue: '',
@@ -117,6 +120,7 @@ export function AddEditItemModal() {
         username: '',
         password: '',
         website: '',
+        totpSecret: '',
         keyName: '',
         keyValue: '',
         endpoint: '',
@@ -141,7 +145,12 @@ export function AddEditItemModal() {
       };
       switch (selectedItem.type) {
         case 'account':
-          setForm({ ...base, username: selectedItem.username, website: selectedItem.website || '' });
+          setForm({
+            ...base,
+            username: selectedItem.username,
+            website: selectedItem.website || '',
+            totpSecret: selectedItem.totp_secret ?? '',
+          });
           break;
         case 'api_key':
           setForm({
@@ -239,6 +248,8 @@ export function AddEditItemModal() {
             password: secret(form.password),
             website: opt(form.website),
             notes: opt(form.notes),
+            // None=keep（不改 TOTP）不可表达：空串即清除，有值即设置
+            totpSecret: form.totpSecret,
           });
         } else {
           await vault.createItem({
@@ -248,6 +259,7 @@ export function AddEditItemModal() {
             password: form.password,
             website: opt(form.website),
             notes: opt(form.notes),
+            totpSecret: form.totpSecret || undefined,
           });
         }
         break;
@@ -458,7 +470,18 @@ export function AddEditItemModal() {
                 onChange={(e) => set({ password: e.target.value })}
                 required={!isEditing}
               />
+              <div className="mt-1">
+                <PasswordGenerator onUse={(pw) => set({ password: pw })} />
+              </div>
               <PasswordStrength password={form.password} />
+            </Field>
+            <Field label="两步验证密钥 (TOTP, base32)">
+              <Input
+                value={form.totpSecret}
+                onChange={(e) => set({ totpSecret: e.target.value })}
+                placeholder="JBSWY3DPEHPK3PXP（留空 = 不启用 / 清除）"
+                className="font-mono text-sm"
+              />
             </Field>
             <Field label="Website">
               <Input value={form.website} onChange={(e) => set({ website: e.target.value })} />
