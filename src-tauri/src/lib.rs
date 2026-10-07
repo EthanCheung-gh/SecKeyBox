@@ -17,10 +17,12 @@ pub use db::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use commands::*;
-    use tauri::Manager;
+    use tauri::{Listener, Manager};
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
@@ -42,6 +44,24 @@ pub fn run() {
             app.manage(DbConnection(std::sync::Mutex::new(conn)));
             app.manage(VaultState::new());
 
+            // Global shortcut toggles the quick-search palette window.
+            let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
+            if let Err(e) = app.global_shortcut().register(shortcut) {
+                eprintln!("[WARN] Failed to register global shortcut: {:?}", e);
+            }
+
+            let app_handle = app.handle().clone();
+            app.listen("global-shortcut://shortcut", move |_event| {
+                if let Some(window) = app_handle.get_webview_window("palette") {
+                    if window.is_visible().unwrap_or(false) {
+                        let _ = window.hide();
+                    } else {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            });
+
             // Exit app when main window is closed
             let app_handle = app.handle().clone();
             if let Some(main_window) = app_handle.get_webview_window("main") {
@@ -61,6 +81,9 @@ pub fn run() {
             lock_vault,
             is_vault_unlocked,
             change_master_password,
+            security_audit,
+            import_csv,
+            import_env,
             get_groups,
             create_new_group,
             update_existing_group,
@@ -68,6 +91,7 @@ pub fn run() {
             get_all_items_cmd,
             get_items_by_group_cmd,
             get_item_detail,
+            get_totp_code,
             create_new_account_item,
             update_existing_account_item,
             create_new_api_key_item,

@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 4;
+const SCHEMA_VERSION: i32 = 5;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -33,7 +33,9 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             password_encrypted BLOB NOT NULL,
             password_nonce BLOB NOT NULL,
             website TEXT,
-            notes TEXT
+            notes TEXT,
+            totp_secret_encrypted BLOB,
+            totp_secret_nonce BLOB
         );
 
         CREATE TABLE IF NOT EXISTS api_key_items (
@@ -119,6 +121,17 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             from_address TEXT,
             notes TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS secret_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+            field TEXT NOT NULL,
+            value_encrypted BLOB NOT NULL,
+            value_nonce BLOB NOT NULL,
+            changed_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_secret_history_item ON secret_history(item_id, changed_at DESC);
 
         CREATE INDEX IF NOT EXISTS idx_items_group ON items(group_id);
         CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
@@ -263,6 +276,29 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             COMMIT;
 
             PRAGMA foreign_keys = ON;
+            "#,
+        )
+        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    // Migration to version 5: per-account TOTP secret columns and the
+    // secret-history table (old secret values are kept encrypted).
+    if version < 5 {
+        conn.execute_batch(
+            r#"
+            BEGIN;
+            ALTER TABLE account_items ADD COLUMN totp_secret_encrypted BLOB;
+            ALTER TABLE account_items ADD COLUMN totp_secret_nonce BLOB;
+            CREATE TABLE secret_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                field TEXT NOT NULL,
+                value_encrypted BLOB NOT NULL,
+                value_nonce BLOB NOT NULL,
+                changed_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_secret_history_item ON secret_history(item_id, changed_at DESC);
+            COMMIT;
             "#,
         )
         .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;

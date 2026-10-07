@@ -30,6 +30,47 @@ pub struct CreateApiKeyRequest {
     pub notes: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct TotpCode {
+    pub code: String,
+    pub seconds_remaining: u64,
+}
+
+/// Current TOTP code for an account item (RFC 6238, HMAC-SHA1, 30s x 6 digits).
+#[tauri::command]
+pub fn get_totp_code(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    id: String,
+) -> Result<TotpCode> {
+    if !vault_state.is_unlocked() {
+        return Err(VaultError::VaultLocked);
+    }
+    let key = vault_state
+        .get_master_key()
+        .ok_or(VaultError::VaultLocked)?;
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+
+    let detail = get_account_item_detail(&conn, &id, key.as_bytes())?;
+    let secret = detail
+        .totp_secret
+        .ok_or_else(|| VaultError::DatabaseError("This account has no TOTP secret".to_string()))?;
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    Ok(TotpCode {
+        code: crate::crypto::generate(&secret, timestamp)?,
+        seconds_remaining: crate::crypto::seconds_remaining(timestamp),
+    })
+}
+
 #[tauri::command]
 pub fn get_all_items_cmd(db: State<DbConnection>) -> Result<Vec<ItemSummary>> {
     let conn = db
@@ -113,6 +154,7 @@ pub fn create_new_account_item(
     password: String,
     website: Option<String>,
     notes: Option<String>,
+    totp_secret: Option<String>,
 ) -> Result<String> {
     eprintln!(
         "[DEBUG] create_new_account_item: called with group_id={}, title={}",
@@ -165,6 +207,7 @@ pub fn create_new_account_item(
         &password,
         website.as_deref(),
         notes.as_deref(),
+        totp_secret.as_deref(),
         key.as_bytes(),
     );
 
@@ -182,6 +225,8 @@ pub fn update_existing_account_item(
     password: Option<String>,
     website: Option<String>,
     notes: Option<String>,
+    // None = 保持现有密钥，Some("") = 清除，Some(s) = 设置新的 base32 密钥
+    totp_secret: Option<String>,
 ) -> Result<()> {
     if !vault_state.is_unlocked() {
         return Err(VaultError::VaultLocked);
@@ -222,6 +267,7 @@ pub fn update_existing_account_item(
         password.as_deref(),
         website.as_deref(),
         notes.as_deref(),
+        totp_secret.as_deref(),
         key.as_bytes(),
     )
 }

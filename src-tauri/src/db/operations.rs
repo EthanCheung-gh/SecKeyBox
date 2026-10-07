@@ -46,6 +46,18 @@ pub struct AccountItemDetail {
     pub password: String,
     pub website: Option<String>,
     pub notes: Option<String>,
+    /// Base32 TOTP secret for two-factor codes; None = not set.
+    pub totp_secret: Option<String>,
+    /// Previous values of the secret fields (newest first).
+    pub secret_history: Vec<SecretHistoryEntry>,
+}
+
+/// One archived (still-encrypted) previous value of a secret field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecretHistoryEntry {
+    pub field: String,
+    pub value: String,
+    pub changed_at: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,6 +96,8 @@ pub struct ApiKeyItemDetail {
     pub auth_method: Option<String>,
     pub rotation_date: Option<i64>,
     pub notes: Option<String>,
+    /// Previous secret values (newest first).
+    pub secret_history: Vec<SecretHistoryEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,6 +136,8 @@ pub struct DatabaseItemDetail {
     pub password: Option<String>,
     pub connection_url: Option<String>,
     pub notes: Option<String>,
+    /// Previous secret values (newest first).
+    pub secret_history: Vec<SecretHistoryEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -140,6 +156,8 @@ pub struct SshItemDetail {
     pub key_path: Option<String>,
     pub passphrase: Option<String>,
     pub notes: Option<String>,
+    /// Previous secret values (newest first).
+    pub secret_history: Vec<SecretHistoryEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,6 +174,8 @@ pub struct CloudItemDetail {
     pub secret: String,
     pub region: Option<String>,
     pub notes: Option<String>,
+    /// Previous secret values (newest first).
+    pub secret_history: Vec<SecretHistoryEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,6 +192,8 @@ pub struct LicenseItemDetail {
     pub bound_email: Option<String>,
     pub expiry_date: Option<i64>,
     pub notes: Option<String>,
+    /// Previous secret values (newest first).
+    pub secret_history: Vec<SecretHistoryEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,6 +212,8 @@ pub struct SmtpItemDetail {
     pub password: String,
     pub from_address: Option<String>,
     pub notes: Option<String>,
+    /// Previous secret values (newest first).
+    pub secret_history: Vec<SecretHistoryEntry>,
 }
 
 pub fn get_db_path(app_handle: &tauri::AppHandle) -> std::path::PathBuf {
@@ -350,6 +374,7 @@ pub fn reencrypt_all(conn: &Connection, old_key: &[u8; 32], new_key: &[u8; 32]) 
     reencrypt_column(&tx, "cloud_items", &["item_id"], "secret_encrypted", "secret_nonce", old_key, new_key)?;
     reencrypt_column(&tx, "license_items", &["item_id"], "license_key_encrypted", "license_key_nonce", old_key, new_key)?;
     reencrypt_column(&tx, "smtp_items", &["item_id"], "password_encrypted", "password_nonce", old_key, new_key)?;
+    reencrypt_column(&tx, "secret_history", &["id"], "value_encrypted", "value_nonce", old_key, new_key)?;
 
     tx.commit()
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
@@ -629,16 +654,33 @@ pub fn get_account_item_detail(
         )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
-    let account: (String, Vec<u8>, [u8; 12], Option<String>, Option<String>) = conn
+    let account: (
+        String,
+        Vec<u8>,
+        [u8; 12],
+        Option<String>,
+        Option<String>,
+        Option<Vec<u8>>,
+        Option<Vec<u8>>,
+    ) = conn
         .query_row(
-            "SELECT username, password_encrypted, password_nonce, website, notes 
+            "SELECT username, password_encrypted, password_nonce, website, notes,
+                    totp_secret_encrypted, totp_secret_nonce
              FROM account_items WHERE item_id = ?1",
             [id],
             |row| {
                 let nonce_bytes: Vec<u8> = row.get(2)?;
                 let mut nonce = [0u8; 12];
                 nonce.copy_from_slice(&nonce_bytes);
-                Ok((row.get(0)?, row.get(1)?, nonce, row.get(3)?, row.get(4)?))
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    nonce,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
             },
         )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
@@ -648,6 +690,21 @@ pub fn get_account_item_detail(
             .map_err(|e| VaultError::CryptoError(e.to_string()))?,
     )
     .map_err(|_| VaultError::CryptoError("Invalid UTF-8 in password".to_string()))?;
+
+    let totp_secret = match (account.5, account.6) {
+        (Some(ct), Some(nb)) => {
+            let mut nonce = [0u8; 12];
+            nonce.copy_from_slice(&nb);
+            Some(String::from_utf8(
+                crate::crypto::decrypt(key, &nonce, &ct)
+                    .map_err(|e| VaultError::CryptoError(e.to_string()))?,
+            )
+            .map_err(|_| VaultError::CryptoError("Invalid UTF-8 in totp secret".to_string()))?)
+        }
+        _ => None,
+    };
+
+    let secret_history = load_secret_history(conn, id, key)?;
 
     Ok(AccountItemDetail {
         id: item.0,
@@ -661,6 +718,8 @@ pub fn get_account_item_detail(
         password,
         website: account.3,
         notes: account.4,
+        totp_secret,
+        secret_history,
     })
 }
 
@@ -710,6 +769,8 @@ pub fn get_api_key_item_detail(
             .map_err(|e| VaultError::CryptoError(e.to_string()))?,
     )
     .map_err(|_| VaultError::CryptoError("Invalid UTF-8 in key value".to_string()))?;
+    let secret_history = load_secret_history(conn, id, key)?;
+
 
     Ok(ApiKeyItemDetail {
         id: item.0,
@@ -724,6 +785,7 @@ pub fn get_api_key_item_detail(
         endpoint: api_key.3,
         auth_method: api_key.4,
         notes: api_key.5,
+        secret_history,
         rotation_date: api_key.6,
     })
 }
@@ -775,6 +837,9 @@ pub fn update_api_key_item(
     key: &[u8; 32],
 ) -> Result<()> {
     let now = chrono_timestamp();
+    if key_value.is_some() {
+        archive_secret(conn, "api_key_items", id, "key_value_encrypted", "key_value_nonce", "key_value")?;
+    }
 
     conn.execute(
         "UPDATE items SET title = ?1, updated_at = ?2 WHERE id = ?3",
@@ -808,6 +873,7 @@ pub fn create_account_item(
     password: &str,
     website: Option<&str>,
     notes: Option<&str>,
+    totp_secret: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
     with_tx(conn, |tx| {
@@ -818,17 +884,36 @@ pub fn create_account_item(
         .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
     tx.execute(
-        "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at) 
+        "INSERT INTO items (id, group_id, type, title, icon, is_favorite, created_at, updated_at)
          VALUES (?1, ?2, 'account', ?3, NULL, 0, ?4, ?5)",
         params![id, group_id, title, now, now],
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    let totp_encrypted = match totp_secret {
+        Some(s) if !s.is_empty() => {
+            let e = crate::crypto::encrypt(key, s.as_bytes())
+                .map_err(|e| VaultError::CryptoError(e.to_string()))?;
+            Some((e.ciphertext.to_vec(), e.nonce.to_vec()))
+        }
+        _ => None,
+    };
+
     tx.execute(
-        "INSERT INTO account_items (item_id, username, password_encrypted, password_nonce, website, notes) 
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id, username, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), website, notes],
-    ).map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        "INSERT INTO account_items (item_id, username, password_encrypted, password_nonce, website, notes, totp_secret_encrypted, totp_secret_nonce)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            id,
+            username,
+            encrypted.ciphertext.to_vec(),
+            encrypted.nonce.to_vec(),
+            website,
+            notes,
+            totp_encrypted.as_ref().map(|e| e.0.clone()),
+            totp_encrypted.as_ref().map(|e| e.1.clone()),
+        ],
+    )
+    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     Ok(id)
     })
@@ -842,9 +927,14 @@ pub fn update_account_item(
     password: Option<&str>,
     website: Option<&str>,
     notes: Option<&str>,
+    totp_secret: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
     let now = chrono_timestamp();
+
+    if password.is_some() {
+        archive_secret(conn, "account_items", id, "password_encrypted", "password_nonce", "password")?;
+    }
 
     conn.execute(
         "UPDATE items SET title = ?1, updated_at = ?2 WHERE id = ?3",
@@ -852,17 +942,36 @@ pub fn update_account_item(
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    // TOTP secret: None = keep current value, Some("") = clear, Some(s) = set.
+    let totp_update = match totp_secret {
+        None => String::new(),
+        Some("") => "totp_secret_encrypted = NULL, totp_secret_nonce = NULL,".to_string(),
+        Some(s) => {
+            let e = crate::crypto::encrypt(key, s.as_bytes())
+                .map_err(|e| VaultError::CryptoError(e.to_string()))?;
+            format!(
+                "totp_secret_encrypted = X'{}', totp_secret_nonce = X'{}',",
+                hex_encode(&e.ciphertext),
+                hex_encode(&e.nonce)
+            )
+        }
+    };
+
     if let Some(pwd) = password {
         let encrypted = crate::crypto::encrypt(key, pwd.as_bytes())
             .map_err(|e| VaultError::CryptoError(e.to_string()))?;
 
         conn.execute(
-            "UPDATE account_items SET username = ?1, password_encrypted = ?2, password_nonce = ?3, website = ?4, notes = ?5 WHERE item_id = ?6",
+            &format!(
+                "UPDATE account_items SET username = ?1, password_encrypted = ?2, password_nonce = ?3, website = ?4, notes = ?5, {totp_update} WHERE item_id = ?6"
+            ),
             params![username, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), website, notes, id],
         ).map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     } else {
         conn.execute(
-            "UPDATE account_items SET username = ?1, website = ?2, notes = ?3 WHERE item_id = ?4",
+            &format!(
+                "UPDATE account_items SET username = ?1, website = ?2, notes = ?3, {totp_update} WHERE item_id = ?4"
+            ),
             params![username, website, notes, id],
         )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
@@ -1064,6 +1173,72 @@ fn with_tx<T>(
     Ok(out)
 }
 
+fn hex_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        out.push_str(&format!("{b:02X}"));
+    }
+    out
+}
+
+/// Archive the current ciphertext of a secret column into secret_history
+/// before it gets overwritten. No-op when the column is NULL (nothing to
+/// archive). The stored ciphertext is the old one under the current key,
+/// so history stays readable after a master-password change (reencrypt_all
+/// rotates history rows together with everything else).
+fn archive_secret(
+    conn: &Connection,
+    table: &str,
+    item_id: &str,
+    enc_col: &str,
+    nonce_col: &str,
+    field: &str,
+) -> Result<()> {
+    conn.execute(
+        &format!(
+            "INSERT INTO secret_history (item_id, field, value_encrypted, value_nonce, changed_at)
+             SELECT ?1, ?2, {enc_col}, {nonce_col}, strftime('%s','now')
+             FROM {table}
+             WHERE item_id = ?1 AND {enc_col} IS NOT NULL"
+        ),
+        params![item_id, field],
+    )
+    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    Ok(())
+}
+
+/// Load (decrypted) secret history for an item, newest first.
+fn load_secret_history(conn: &Connection, item_id: &str, key: &[u8; 32]) -> Result<Vec<SecretHistoryEntry>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT field, value_encrypted, value_nonce, changed_at FROM secret_history
+             WHERE item_id = ?1 ORDER BY changed_at DESC, id DESC LIMIT 20",
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    let rows: Vec<(String, Vec<u8>, [u8; 12], i64)> = stmt
+        .query_map([item_id], |row| {
+            let nonce_bytes: Vec<u8> = row.get(2)?;
+            let mut nonce = [0u8; 12];
+            nonce.copy_from_slice(&nonce_bytes);
+            Ok((row.get(0)?, row.get(1)?, nonce, row.get(3)?))
+        })
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut out = Vec::with_capacity(rows.len());
+    for (field, ct, nonce, changed_at) in rows {
+        let value = String::from_utf8(
+            crate::crypto::decrypt(key, &nonce, &ct)
+                .map_err(|e| VaultError::CryptoError(e.to_string()))?,
+        )
+        .map_err(|_| VaultError::CryptoError("Invalid UTF-8 in history value".to_string()))?;
+        out.push(SecretHistoryEntry { field, value, changed_at });
+    }
+    Ok(out)
+}
+
 // ---------- database ----------
 
 pub fn create_database_item(
@@ -1137,6 +1312,9 @@ pub fn update_database_item(
     key: &[u8; 32],
 ) -> Result<()> {
     let now = chrono_timestamp();
+    if password.is_some() {
+        archive_secret(conn, "database_items", id, "password_encrypted", "password_nonce", "password")?;
+    }
 
     conn.execute(
         "UPDATE items SET title = ?1, updated_at = ?2 WHERE id = ?3",
@@ -1196,6 +1374,8 @@ pub fn get_database_item_detail(
         }
         _ => None,
     };
+    let secret_history = load_secret_history(conn, id, key)?;
+
 
     Ok(DatabaseItemDetail {
         id: item.0,
@@ -1213,6 +1393,7 @@ pub fn get_database_item_detail(
         password,
         connection_url: db.7,
         notes: db.8,
+        secret_history,
     })
 }
 
@@ -1295,6 +1476,12 @@ pub fn update_ssh_item(
     key: &[u8; 32],
 ) -> Result<()> {
     let now = chrono_timestamp();
+    if password.is_some() {
+        archive_secret(conn, "ssh_items", id, "password_encrypted", "password_nonce", "password")?;
+    }
+    if passphrase.is_some() {
+        archive_secret(conn, "ssh_items", id, "passphrase_encrypted", "passphrase_nonce", "passphrase")?;
+    }
 
     conn.execute(
         "UPDATE items SET title = ?1, updated_at = ?2 WHERE id = ?3",
@@ -1384,6 +1571,8 @@ pub fn get_ssh_item_detail(
             _ => Ok(None),
         }
     };
+    let secret_history = load_secret_history(conn, id, key)?;
+
 
     Ok(SshItemDetail {
         id: item.0,
@@ -1400,6 +1589,7 @@ pub fn get_ssh_item_detail(
         key_path: ssh.5,
         passphrase: decrypt_opt(&ssh.6, &ssh.7, "passphrase")?,
         notes: ssh.8,
+        secret_history,
     })
 }
 
@@ -1453,6 +1643,9 @@ pub fn update_cloud_item(
     key: &[u8; 32],
 ) -> Result<()> {
     let now = chrono_timestamp();
+    if secret.is_some() {
+        archive_secret(conn, "cloud_items", id, "secret_encrypted", "secret_nonce", "secret")?;
+    }
 
     conn.execute(
         "UPDATE items SET title = ?1, updated_at = ?2 WHERE id = ?3",
@@ -1510,6 +1703,8 @@ pub fn get_cloud_item_detail(
             .map_err(|e| VaultError::CryptoError(e.to_string()))?,
     )
     .map_err(|_| VaultError::CryptoError("Invalid UTF-8 in secret".to_string()))?;
+    let secret_history = load_secret_history(conn, id, key)?;
+
 
     Ok(CloudItemDetail {
         id: item.0,
@@ -1524,6 +1719,7 @@ pub fn get_cloud_item_detail(
         secret,
         region: cloud.4,
         notes: cloud.5,
+        secret_history,
     })
 }
 
@@ -1577,6 +1773,9 @@ pub fn update_license_item(
     key: &[u8; 32],
 ) -> Result<()> {
     let now = chrono_timestamp();
+    if license_key.is_some() {
+        archive_secret(conn, "license_items", id, "license_key_encrypted", "license_key_nonce", "license_key")?;
+    }
 
     conn.execute(
         "UPDATE items SET title = ?1, updated_at = ?2 WHERE id = ?3",
@@ -1634,6 +1833,8 @@ pub fn get_license_item_detail(
             .map_err(|e| VaultError::CryptoError(e.to_string()))?,
     )
     .map_err(|_| VaultError::CryptoError("Invalid UTF-8 in license key".to_string()))?;
+    let secret_history = load_secret_history(conn, id, key)?;
+
 
     Ok(LicenseItemDetail {
         id: item.0,
@@ -1648,6 +1849,7 @@ pub fn get_license_item_detail(
         bound_email: license.3,
         expiry_date: license.4,
         notes: license.5,
+        secret_history,
     })
 }
 
@@ -1705,6 +1907,9 @@ pub fn update_smtp_item(
     key: &[u8; 32],
 ) -> Result<()> {
     let now = chrono_timestamp();
+    if password.is_some() {
+        archive_secret(conn, "smtp_items", id, "password_encrypted", "password_nonce", "password")?;
+    }
 
     conn.execute(
         "UPDATE items SET title = ?1, updated_at = ?2 WHERE id = ?3",
@@ -1762,6 +1967,8 @@ pub fn get_smtp_item_detail(
             .map_err(|e| VaultError::CryptoError(e.to_string()))?,
     )
     .map_err(|_| VaultError::CryptoError("Invalid UTF-8 in password".to_string()))?;
+    let secret_history = load_secret_history(conn, id, key)?;
+
 
     Ok(SmtpItemDetail {
         id: item.0,
@@ -1778,6 +1985,7 @@ pub fn get_smtp_item_detail(
         password,
         from_address: smtp.6,
         notes: smtp.7,
+        secret_history,
     })
 }
 
@@ -1799,7 +2007,7 @@ mod tests {
     fn seed_all_types(conn: &Connection, key: &[u8; 32]) -> Vec<String> {
         let mut ids = Vec::new();
         ids.push(
-            create_account_item(conn, "built-in-accounts", "Acc", "user1", "secret-acc", None, None, key)
+            create_account_item(conn, "built-in-accounts", "Acc", "user1", "secret-acc", None, None, None, key)
                 .unwrap(),
         );
         ids.push(
@@ -1987,14 +2195,6 @@ mod tests {
             let conn = Connection::open(&db_path).unwrap();
             enable_foreign_keys(&conn).unwrap();
 
-            let count = |tag: &str| -> i64 {
-                let n: i64 = conn
-                    .query_row("SELECT COUNT(*) FROM license_items", [], |r| r.get(0))
-                    .unwrap();
-                eprintln!("[probe] {tag}: license_items rows = {n}");
-                n
-            };
-
             let version_before: String = conn
                 .query_row(
                     "SELECT value FROM vault_config WHERE key = 'schema_version'",
@@ -2002,15 +2202,18 @@ mod tests {
                     |r| r.get(0),
                 )
                 .unwrap_or_else(|_| "<missing>".to_string());
-            let fk: i64 = conn
-                .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+            let detail_rows_before: i64 = conn
+                .query_row("SELECT COUNT(*) FROM license_items", [], |r| r.get(0))
                 .unwrap();
-            eprintln!("[probe] version_before={version_before} foreign_keys={fk}");
-
-            count("after open+fk");
 
             run_migrations(&conn).unwrap();
 
+            // Migrations must not remove anything at the current version
+            // (this regressed when the stale version read re-ran the v4
+            // rebuild and cascade-deleted the detail rows).
+            let detail_rows_after: i64 = conn
+                .query_row("SELECT COUNT(*) FROM license_items", [], |r| r.get(0))
+                .unwrap();
             let version_after: String = conn
                 .query_row(
                     "SELECT value FROM vault_config WHERE key = 'schema_version'",
@@ -2018,8 +2221,10 @@ mod tests {
                     |r| r.get(0),
                 )
                 .unwrap_or_else(|_| "<missing>".to_string());
-            count("after run_migrations");
-            let version_after = version_after;
+            assert_eq!(
+                detail_rows_before, detail_rows_after,
+                "run_migrations wiped license_items! version before={version_before} after={version_after}"
+            );
 
             let stored_hash = get_password_hash(&conn).unwrap().unwrap();
             let stored_salt = get_password_salt(&conn).unwrap().unwrap();
@@ -2047,11 +2252,11 @@ mod tests {
         // Custom group with an item.
         let custom = create_group(&conn, "Team", None, None, None).unwrap();
         let custom_item =
-            create_account_item(&conn, &custom.id, "Team Acc", "u", "pw", None, None, &key).unwrap();
+            create_account_item(&conn, &custom.id, "Team Acc", "u", "pw", None, None, None, &key).unwrap();
 
         // Built-in group with an item.
         let builtin_item =
-            create_account_item(&conn, "built-in-accounts", "Acc2", "u", "pw", None, None, &key)
+            create_account_item(&conn, "built-in-accounts", "Acc2", "u", "pw", None, None, None, &key)
                 .unwrap();
 
         delete_group(&conn, &custom.id).unwrap();
