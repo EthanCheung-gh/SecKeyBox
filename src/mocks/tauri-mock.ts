@@ -18,6 +18,7 @@ import type {
   Group,
   ItemSummary,
   ItemDetail,
+  SecretHistoryEntry,
   EnvVarPair,
 } from '@/types';
 
@@ -44,6 +45,8 @@ type MockItem = {
   rotation_date?: number;
   // env_var
   variables?: EnvVarPair[];
+  // account: 两步验证（base32）
+  totp_secret?: string;
   // database
   db_type?: string;
   host?: string;
@@ -216,8 +219,56 @@ function subtitleOf(item: MockItem): string {
   }
 }
 
-function toSummary(item: MockItem): ItemSummary {
-  return {
+// ---------- mock 密钥历史（与后端 secret_history 行为对齐） ----------
+type HistoryRow = { field: string; value: string; changed_at: number };
+const history = new Map<string, HistoryRow[]>();
+
+function historyOf(itemId: string): SecretHistoryEntry[] {
+  return history.get(itemId) ?? [];
+}
+
+function archiveMockSecret(itemId: string, field: string, oldValue: string | undefined): void {
+  if (oldValue === undefined || oldValue === '') return;
+  const rows = history.get(itemId) ?? [];
+  rows.unshift({ field, value: oldValue, changed_at: now() });
+  history.set(itemId, rows.slice(0, 20));
+}
+
+// 极简 TOTP（RFC 6238 / HMAC-SHA1 / 30s x 6位，含 RFC 测试向量同一实现逻辑）
+async function totpCode(secretB32: string, atSeconds: number): Promise<string> {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = 0;
+  let bitCount = 0;
+  const secret: number[] = [];
+  for (const ch of secretB32.replace(/[\s-]/g, '').toUpperCase()) {
+    const v = alphabet.indexOf(ch);
+    if (v < 0) throw new Error('invalid base32');
+    bits = (bits << 5) | v;
+    bitCount += 5;
+    if (bitCount >= 8) {
+      bitCount -= 8;
+      secret.push((bits >> bitCount) & 0xff);
+    }
+  }
+  const counter = Math.floor(atSeconds / 30);
+  const msg = new Array(8).fill(0);
+  let c = counter;
+  for (let i = 7; i >= 0; i--) {
+    msg[i] = c & 0xff;
+    c = Math.floor(c / 256);
+  }
+  const cryptoKey = await crypto.subtle.importKey('raw', new Uint8Array(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, new Uint8Array(msg)));
+  const offset = sig[sig.length - 1] & 0x0f;
+  const bin =
+    ((sig[offset] & 0x7f) << 24) |
+    ((sig[offset + 1] & 0xff) << 16) |
+    ((sig[offset + 2] & 0xff) << 8) |
+    (sig[offset + 3] & 0xff);
+  return String(bin % 1000000).padStart(6, '0');
+}
+
+function toSummary(item: MockItem): ItemSummary {  return {
     id: item.id,
     title: item.title,
     subtitle: subtitleOf(item),
@@ -249,6 +300,8 @@ function toDetail(item: MockItem): ItemDetail {
         password: item.password ?? '',
         website: item.website,
         notes: item.notes,
+        totp_secret: item.totp_secret,
+        secret_history: historyOf(item.id),
       };
     case 'api_key':
       return {
@@ -260,6 +313,7 @@ function toDetail(item: MockItem): ItemDetail {
         auth_method: item.auth_method,
         rotation_date: item.rotation_date,
         notes: item.notes,
+        secret_history: historyOf(item.id),
       };
     case 'env_var':
       return {
@@ -280,6 +334,7 @@ function toDetail(item: MockItem): ItemDetail {
         password: item.password,
         connection_url: item.connection_url,
         notes: item.notes,
+        secret_history: historyOf(item.id),
       };
     case 'ssh':
       return {
@@ -292,6 +347,7 @@ function toDetail(item: MockItem): ItemDetail {
         key_path: item.key_path,
         passphrase: item.passphrase,
         notes: item.notes,
+        secret_history: historyOf(item.id),
       };
     case 'cloud':
       return {
@@ -302,6 +358,7 @@ function toDetail(item: MockItem): ItemDetail {
         secret: item.password ?? '',
         region: item.region,
         notes: item.notes,
+        secret_history: historyOf(item.id),
       };
     case 'license':
       return {
@@ -312,6 +369,7 @@ function toDetail(item: MockItem): ItemDetail {
         bound_email: item.bound_email,
         expiry_date: item.expiry_date,
         notes: item.notes,
+        secret_history: historyOf(item.id),
       };
     case 'smtp':
       return {
@@ -324,6 +382,7 @@ function toDetail(item: MockItem): ItemDetail {
         password: item.password ?? '',
         from_address: item.from_address,
         notes: item.notes,
+        secret_history: historyOf(item.id),
       };
   }
 }
@@ -347,6 +406,8 @@ function seedDemoData(): void {
       ...baseItem('account', 'built-in-accounts', 'GitHub', '🐙'),
       username: 'octocat',
       password: 'gh-pass-12345',
+      // RFC 6238 测试向量 secret（显示 "287082"~"XXXXXX" 会随时间变化）
+      totp_secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ',
       website: 'https://github.com',
       notes: '主账号，已开启 2FA',
       is_favorite: true,
@@ -795,42 +856,6 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     return toDetail(findItem(str(a, 'id')));
   },
 
-  create_new_account_item: (a) => {
-    requireUnlocked();
-    const title = str(a, 'title');
-    const username = str(a, 'username');
-    const password = str(a, 'password');
-    checkLength(title, 1, 100, 'Title');
-    checkLength(username, 1, 100, 'Username');
-    checkLength(password, 1, 1000, 'Password');
-    const item = baseItem('account', str(a, 'group_id', 'groupId'), title, optStr(a, 'icon'));
-    item.username = username;
-    item.password = password;
-    item.website = optStr(a, 'website');
-    item.notes = optStr(a, 'notes');
-    state.items.push(item);
-    return item.id;
-  },
-
-  update_existing_account_item: (a) => {
-    requireUnlocked();
-    const item = findItem(str(a, 'id'));
-    if (item.type !== 'account') throw vaultErr('ItemNotFound', 'Not an account item');
-    const title = str(a, 'title');
-    const username = str(a, 'username');
-    checkLength(title, 1, 100, 'Title');
-    checkLength(username, 1, 100, 'Username');
-    const password = optStr(a, 'password');
-    if (password !== undefined) checkLength(password, 1, 1000, 'Password');
-    item.title = title;
-    item.username = username;
-    if (password !== undefined) item.password = password;
-    item.website = optStr(a, 'website');
-    item.notes = optStr(a, 'notes');
-    item.updated_at = now();
-    return null;
-  },
-
   create_new_api_key_item: (a) => {
     requireUnlocked();
     const r = (a.request ?? a) as Record<string, unknown>;
@@ -882,7 +907,7 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     if (notes !== undefined) checkLength(notes, 0, 5000, 'Notes');
     item.title = title;
     item.key_name = keyName;
-    if (keyValue !== undefined) item.key_value = keyValue;
+    if (keyValue !== undefined) { if (keyValue !== item.key_value) archiveMockSecret(item.id, 'key_value', item.key_value); item.key_value = keyValue; }
     item.endpoint = endpoint;
     item.auth_method = authMethod;
     item.notes = notes;
@@ -1006,9 +1031,9 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     item.host = host;
     item.port = num(a, 'port');
     item.username = username;
-    if (password !== undefined) item.password = password;
+    if (password !== undefined) { if (password !== item.password) archiveMockSecret(item.id, 'password', item.password); item.password = password; }
     item.key_path = optStr(a, 'keyPath', 'key_path');
-    if (passphrase !== undefined) item.passphrase = passphrase;
+    if (passphrase !== undefined) { if (passphrase !== item.passphrase) archiveMockSecret(item.id, 'passphrase', item.passphrase); item.passphrase = passphrase; }
     item.notes = optStr(a, 'notes');
     item.updated_at = now();
     return null;
@@ -1046,7 +1071,7 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     item.title = title;
     item.provider = str(a, 'provider');
     item.access_key_id = str(a, 'accessKeyId', 'access_key_id');
-    if (secret !== undefined) item.password = secret;
+    if (secret !== undefined) { if (secret !== item.password) archiveMockSecret(item.id, 'secret', item.password); item.password = secret; }
     item.region = optStr(a, 'region');
     item.notes = optStr(a, 'notes');
     item.updated_at = now();
@@ -1081,7 +1106,7 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     const licenseKey = optStr(a, 'licenseKey', 'license_key');
     item.title = title;
     item.software_name = str(a, 'softwareName', 'software_name');
-    if (licenseKey !== undefined) item.license_key = licenseKey;
+    if (licenseKey !== undefined) { if (licenseKey !== item.license_key) archiveMockSecret(item.id, 'license_key', item.license_key); item.license_key = licenseKey; }
     item.bound_email = optStr(a, 'boundEmail', 'bound_email');
     item.expiry_date = num(a, 'expiryDate', 'expiry_date');
     item.notes = optStr(a, 'notes');
@@ -1123,11 +1148,208 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     item.port = num(a, 'port');
     item.encryption = optStr(a, 'encryption');
     item.username = optStr(a, 'username');
-    if (password !== undefined) item.password = password;
+    if (password !== undefined) { if (password !== item.password) archiveMockSecret(item.id, 'password', item.password); item.password = password; }
     item.from_address = optStr(a, 'fromAddress', 'from_address');
     item.notes = optStr(a, 'notes');
     item.updated_at = now();
     return null;
+  },
+
+  create_new_account_item: (a) => {
+    requireUnlocked();
+    const title = str(a, 'title');
+    const username = str(a, 'username');
+    const password = str(a, 'password');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(username, 1, 100, 'Username');
+    checkLength(password, 1, 1000, 'Password');
+    const item = baseItem('account', str(a, 'group_id', 'groupId'), title, optStr(a, 'icon'));
+    item.username = username;
+    item.password = password;
+    item.website = optStr(a, 'website');
+    item.notes = optStr(a, 'notes');
+    item.totp_secret = optStr(a, 'totpSecret', 'totp_secret');
+    state.items.push(item);
+    return item.id;
+  },
+
+  update_existing_account_item: (a) => {
+    requireUnlocked();
+    const item = findItem(str(a, 'id'));
+    if (item.type !== 'account') throw vaultErr('ItemNotFound', 'Not an account item');
+    const title = str(a, 'title');
+    const username = str(a, 'username');
+    checkLength(title, 1, 100, 'Title');
+    checkLength(username, 1, 100, 'Username');
+    const password = optStr(a, 'password');
+    if (password !== undefined) checkLength(password, 1, 1000, 'Password');
+    if (password !== undefined && password !== item.password) {
+      archiveMockSecret(item.id, 'password', item.password);
+    }
+    item.title = title;
+    item.username = username;
+    if (password !== undefined) item.password = password;
+    item.website = optStr(a, 'website');
+    item.notes = optStr(a, 'notes');
+    // TOTP：None=保持（JS 侧 undefined），''=清除，其他=设置
+    if ('totpSecret' in a || 'totp_secret' in a) {
+      const totp = optStr(a, 'totpSecret', 'totp_secret');
+      if (totp !== undefined) {
+        if (totp !== item.totp_secret) {
+          archiveMockSecret(item.id, 'totp_secret', item.totp_secret);
+        }
+        item.totp_secret = totp || undefined;
+      }
+    }
+    item.updated_at = now();
+    return null;
+  },
+
+  get_totp_code: async (a) => {
+    if (!state.unlocked) throw vaultErr('VaultLocked', 'Vault is locked');
+    const item = findItem(str(a, 'id'));
+    if (item.type !== 'account') throw vaultErr('ItemNotFound', 'Not an account item');
+    if (!item.totp_secret) throw vaultErr('DatabaseError', 'This account has no TOTP secret');
+    const nowSec = Math.floor(Date.now() / 1000);
+    return {
+      code: await totpCode(item.totp_secret, nowSec),
+      seconds_remaining: 30 - (nowSec % 30),
+    };
+  },
+
+  security_audit: () => {
+    if (!state.unlocked) throw vaultErr('VaultLocked', 'Vault is locked');
+    const weak: { item_id: string; title: string; detail: string }[] = [];
+    const missing2fa: { item_id: string; title: string; detail: string }[] = [];
+    const stale: { item_id: string; title: string; detail: string }[] = [];
+    const expiring: { item_id: string; title: string; detail: string }[] = [];
+    const usage = new Map<string, { item_id: string; title: string; detail: string }[]>();
+    const track = (secret: string, item: MockItem, label: string) => {
+      if (!secret) return;
+      const list = usage.get(secret) ?? [];
+      list.push({ item_id: item.id, title: item.title, detail: label });
+      usage.set(secret, list);
+    };
+    const classes = (s: string) =>
+      [/[a-z]/.test(s), /[A-Z]/.test(s), /[0-9]/.test(s), /[^a-zA-Z0-9]/.test(s)].filter(Boolean).length;
+    const nowSec = now();
+    for (const item of state.items) {
+      const f = (detail: string) => ({ item_id: item.id, title: item.title, detail });
+      switch (item.type) {
+        case 'account': {
+          const pw = item.password ?? '';
+          if (pw.length < 12 || classes(pw) < 3) weak.push(f(`${pw.length} 位 / ${classes(pw)} 种字符类型`));
+          track(pw, item, '账号密码');
+          if (!item.totp_secret) missing2fa.push(f(`用户名 ${item.username ?? ''}`));
+          break;
+        }
+        case 'api_key':
+          track(item.key_value ?? '', item, `API Key ${item.key_name ?? ''}`);
+          if (item.rotation_date === undefined || nowSec - item.rotation_date > 180 * 86400)
+            stale.push(f(item.rotation_date === undefined ? '从未记录轮换' : `${Math.floor((nowSec - item.rotation_date) / 86400)} 天未轮换`));
+          break;
+        case 'database':
+          track(item.password ?? '', item, '数据库密码');
+          break;
+        case 'ssh':
+          track(item.password ?? '', item, 'SSH 密码');
+          break;
+        case 'cloud':
+          track(item.password ?? '', item, '云 Secret');
+          break;
+        case 'license': {
+          track(item.license_key ?? '', item, '许可证密钥');
+          if (item.expiry_date !== undefined) {
+            const days = Math.floor((item.expiry_date - nowSec) / 86400);
+            if (days < 30) expiring.push(f(days < 0 ? `已过期 ${-days} 天` : `${days} 天后过期`));
+          }
+          break;
+        }
+        case 'smtp':
+          track(item.password ?? '', item, 'SMTP 密码');
+          break;
+      }
+    }
+    const reused = [...usage.entries()]
+      .filter(([, items]) => items.length > 1)
+      .map(([secret, items]) => ({
+        secret_hint: secret.length <= 4 ? '••••' : `•••${secret.slice(-4)}`,
+        items,
+      }));
+    return { weak_passwords: weak, reused_secrets: reused, stale_rotations: stale, missing_2fa: missing2fa, expiring_licenses: expiring };
+  },
+
+  import_csv: (a) => {
+    if (!state.unlocked) throw vaultErr('VaultLocked', 'Vault is locked');
+    const data = str(a, 'data');
+    const groupId = str(a, 'groupId', 'group_id');
+    if (!groupId) throw vaultErr('DatabaseError', 'missing target group');
+    const lines = data.split(/\r?\n/).filter((l) => l.trim() !== '');
+    if (lines.length === 0) throw vaultErr('DatabaseError', 'Empty CSV file');
+    const header = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const idx = (...names: string[]) => header.findIndex((h) => names.includes(h));
+    const colName = idx('name', 'title');
+    const colUrl = idx('url', 'login_uri', 'website', 'hostname');
+    const colUser = idx('username', 'login_username', 'user_name');
+    const colPass = idx('password', 'login_password');
+    const colTotp = idx('login_totp', 'totp', 'otpauth');
+    const colNotes = idx('notes', 'note', 'extra', 'comments');
+    const colFolder = idx('folder', 'grouping', 'group');
+    if (colName < 0 || colPass < 0) throw vaultErr('DatabaseError', 'CSV 缺少 name/password 列');
+    let items = 0;
+    let groups = 0;
+    for (const line of lines.slice(1)) {
+      const cols = line.split(',');
+      const title = (cols[colName] ?? '').trim();
+      const password = (cols[colPass] ?? '').trim();
+      if (!title || !password) continue;
+      let targetGroup = groupId;
+      const folder = colFolder >= 0 ? (cols[colFolder] ?? '').trim() : '';
+      if (folder) {
+        let g = state.groups.find((x) => x.name === folder);
+        if (!g) {
+          const t = now();
+          g = { id: uid('group'), name: folder, icon: '📂', parent_id: undefined, sort_order: 999, created_at: t, updated_at: t };
+          state.groups.push(g);
+          groups++;
+        }
+        targetGroup = g.id;
+      }
+      const item = baseItem('account', targetGroup, title);
+      item.password = password;
+      item.username = colUser >= 0 ? (cols[colUser] ?? '').trim() || undefined : undefined;
+      item.website = colUrl >= 0 ? (cols[colUrl] ?? '').trim() || undefined : undefined;
+      item.notes = colNotes >= 0 ? (cols[colNotes] ?? '').trim() || undefined : undefined;
+      item.totp_secret = colTotp >= 0 ? (cols[colTotp] ?? '').trim() || undefined : undefined;
+      state.items.push(item);
+      items++;
+    }
+    return { groups_imported: groups, items_imported: items, items_skipped: Math.max(0, lines.length - 1 - items) };
+  },
+
+  import_env: (a) => {
+    if (!state.unlocked) throw vaultErr('VaultLocked', 'Vault is locked');
+    const groupId = str(a, 'groupId', 'group_id');
+    const title = str(a, 'title');
+    const content = str(a, 'content');
+    if (!groupId) throw vaultErr('DatabaseError', 'missing target group');
+    const variables: EnvVarPair[] = [];
+    for (let line of content.split(/\r?\n/)) {
+      line = line.trim();
+      if (!line || line.startsWith('#')) continue;
+      line = line.replace(/^export\s+/, '');
+      const eq = line.indexOf('=');
+      if (eq < 0) continue;
+      const k = line.slice(0, eq).trim();
+      let v = line.slice(eq + 1).trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      if (k) variables.push({ key: k, value: v });
+    }
+    if (variables.length === 0) throw vaultErr('DatabaseError', 'No KEY=VALUE pairs found in the file');
+    const item = baseItem('env_var', groupId, title || '导入的环境变量');
+    item.variables = variables;
+    state.items.push(item);
+    return { groups_imported: 0, items_imported: 1, items_skipped: 0 };
   },
 
   delete_existing_item: (a) => {

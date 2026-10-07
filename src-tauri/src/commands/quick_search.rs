@@ -76,10 +76,11 @@ mod tests {
                 "pw",
                 None,
                 None,
+                None,
                 key,
             )
             .unwrap(),
-            create_account_item(conn, "built-in-accounts", "a_b", "literal_user", "pw", None, None, key)
+            create_account_item(conn, "built-in-accounts", "a_b", "literal_user", "pw", None, None, None, key)
                 .unwrap(),
         ]
     }
