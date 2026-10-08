@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.2.0-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.3.0-blue?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
   <a href="license"><img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License"></a>
 </p>
@@ -35,8 +35,12 @@ Developer credentials do not fit the "website + password" model of classic passw
 | Encryption | Per-field AES-256-GCM with a random nonce; key derived from your master password with Argon2id (m=64 MB, t=3, p=4) |
 | Master password change | Verifies the current password, derives a fresh key, and re-encrypts **every** stored secret in a single transaction — a failure rolls back and leaves the vault readable |
 | Group management | Built-in group per credential type; every group (built-in included) can be renamed or deleted, with cascade delete of contained items |
-| Search | Sidebar search filters title and subtitle across the item list in real time |
-| Import / Export | JSON backup export; merge or replace import (data stays encrypted in backups) |
+| Search | Sidebar search filters title and subtitle across the item list in real time (backend SQL LIKE); `Ctrl+Shift+Space` opens a system-wide quick-search palette — arrows to select, Enter copies the secret |
+| Built-in 2FA (TOTP) | Optional base32 secret per account; live 6-digit code with a countdown ring in the detail panel |
+| Password generator | Crypto-random, per-class guarantees, length/charset/avoid-ambiguous options, embedded in every password field |
+| Secret history | Previous values are kept (encrypted) whenever a password/key/secret is rotated — viewable and copyable from the detail panel |
+| Security dashboard | Local audit: weak passwords, reused secrets, stale API-key rotations, accounts without 2FA, expiring licenses |
+| Import / Export | JSON backup export; merge or replace import. Bulk import from Chrome / Bitwarden / 1Password / LastPass CSV (folders become groups, TOTP columns honored) and from `.env` files |
 | Session safety | Auto-lock after 5 minutes of inactivity; clipboard auto-clear 30 s after copying a secret; keys are zeroized on drop |
 | Appearance | Light / dark / follow-system theme |
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.2.0-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.3.0-blue?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
   <a href="license"><img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License"></a>
 </p>
@@ -35,8 +35,12 @@
 | 加密 | 每字段独立 AES-256-GCM 加密 + 随机 nonce；密钥由主密码经 Argon2id 派生（m=64MB，t=3，p=4） |
 | 主密码修改 | 校验当前密码、派生新密钥，并在单个事务内重加密**全部**密文——失败即回滚，库仍可用旧密码打开 |
 | 分组管理 | 每类凭证一个内置分组；所有分组（含内置）均可重命名、删除，删除时级联清理组内条目 |
-| 搜索 | 侧边栏搜索框实时过滤条目标题与副标题 |
-| 导入 / 导出 | JSON 备份导出；导入支持合并 / 替换两种模式（备份中的数据保持密文） |
+| 搜索 | 侧边栏搜索框实时过滤条目标题与副标题（后端 SQL LIKE）；`Ctrl+Shift+Space` 呼出系统级快速搜索条——↑↓ 选择、回车复制密钥 |
+| 两步验证（TOTP） | 每个账号可存 base32 密钥，详情面板显示实时 6 位验证码与倒计时环 |
+| 密码生成器 | 加密级随机、字符集保底、长度/字符集/排除易混字符可选，内嵌于所有密码输入框 |
+| 密钥历史 | 轮换密码 / 密钥前的旧值以密文归档，详情面板可查看、可复制 |
+| 安全体检 | 本地审计：弱密码、重复密钥、长期未轮换、缺少 2FA 的账号、临期许可证 |
+| 导入 / 导出 | JSON 备份导出；导入支持合并 / 替换。另支持从 Chrome / Bitwarden / 1Password / LastPass CSV 批量导入（folder 列自动建组、TOTP 列一并导入）及 `.env` 文件导入 |
 | 会话安全 | 5 分钟无活动自动锁定；复制敏感值 30 秒后自动清空剪贴板；密钥释放时内存清零 |
 | 外观 | 亮色 / 暗色 / 跟随系统主题 |
 
