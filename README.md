@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.3.0-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.4.0-blue?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
   <a href="license"><img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License"></a>
 </p>
@@ -26,6 +26,12 @@ Developer credentials do not fit the "website + password" model of classic passw
 
 **The installer ships with zero built-in credentials.** First launch walks you through creating a vault with your own master password. No accounts, no cloud, no telemetry.
 
+## Screenshots
+
+| Vault | Security dashboard |
+|-------|--------------------|
+| ![Main window](docs/screenshots/main.png) | ![Security dashboard](docs/screenshots/security.png) |
+
 ## Features
 
 | Area | What you get |
@@ -41,10 +47,30 @@ Developer credentials do not fit the "website + password" model of classic passw
 | Secret history | Previous values are kept (encrypted) whenever a password/key/secret is rotated — viewable and copyable from the detail panel |
 | Security dashboard | Local audit: weak passwords, reused secrets, stale API-key rotations, accounts without 2FA, expiring licenses |
 | Import / Export | JSON backup export; merge or replace import. Bulk import from Chrome / Bitwarden / 1Password / LastPass CSV (folders become groups, TOTP columns honored) and from `.env` files |
-| Session safety | Auto-lock after 5 minutes of inactivity; clipboard auto-clear 30 s after copying a secret; keys are zeroized on drop |
+| CLI access | `seckeybox-cli` reads secrets from the running app over a local socket (mode 0600): `export DB_PASSWORD=$(seckeybox-cli get "prod database")`. Read-only — it can never unlock or modify the vault |
+| Encrypted attachments | Attach SSH private keys, certificates, `.env` bundles or images (up to 5 MB) to any item; contents are AES-256-GCM encrypted, only file metadata stays readable |
+| TOTP import | Paste an `otpauth://` URI or scan a QR screenshot; secret, issuer and account are filled in automatically (6-digit / 30-second entries) |
+| Session safety | Configurable auto-lock (off / 1 / 5 / 15 / 30 min, enforced by the app process even while the window is hidden) and clipboard auto-clear (0 / 15 / 30 / 60 s); keys are zeroized on drop |
 | Appearance | Light / dark / follow-system theme |
 
 Notes are stored as plain text by design (searchable); all password/key/secret fields are encrypted.
+
+## Command line
+
+The Linux `.deb` installs `/usr/bin/seckeybox-cli` next to the app. The CLI never decrypts anything itself: it talks to the running app over a local socket (mode 0600) and only works while the vault is unlocked.
+
+```bash
+seckeybox-cli status                        # locked | unlocked
+seckeybox-cli list [QUERY]                  # id <TAB> type <TAB> title
+seckeybox-cli get "GitHub"                  # prints the primary secret
+seckeybox-cli get "GitHub" --field username
+seckeybox-cli get --id <id> --json
+seckeybox-cli totp "GitHub"                 # current 6-digit code
+
+export DB_PASSWORD=$(seckeybox-cli get "prod database")
+```
+
+Exit codes: `0` success, `1` vault locked, `2` not found / ambiguous / bad usage, `3` app not reachable.
 
 ## Security model
 
@@ -70,7 +96,7 @@ Grab an installer from the [latest release](https://github.com/EthanCheung-gh/Se
 |----------|----------|
 | Windows | `.msi` or `.exe` (NSIS setup) |
 | macOS (Apple Silicon) | `.dmg` |
-| Linux | `.deb`, `.rpm`, `.AppImage` |
+| Linux | `.deb` (includes `seckeybox-cli`), `.rpm`, `.AppImage` |
 
 ## Build from source
 
@@ -83,6 +109,7 @@ npm install
 
 npm run tauri dev     # run the desktop app in dev mode
 npm run tauri build   # produce installers in src-tauri/target/release/bundle/
+                      # (builds the CLI first; the deb bundles /usr/bin/seckeybox-cli)
 ```
 
 Useful scripts:
@@ -91,7 +118,8 @@ Useful scripts:
 npm run dev           # frontend only in a plain browser (a built-in mock
                       # replaces the Tauri backend, seeded with demo data)
 npm run build         # typecheck + production web build
-cd src-tauri && cargo test   # unit tests incl. re-encryption & cascade tests
+npm run build:cli     # build seckeybox-cli (cli/target/release/seckeybox-cli)
+cd src-tauri && cargo test   # unit tests incl. re-encryption, cascade & IPC protocol
 ```
 
 ## Project structure
@@ -105,10 +133,12 @@ SecKeyBox/
 │   └── mocks/              # dev-only browser mock of the Tauri backend
 ├── src-tauri/              # Rust backend
 │   └── src/
-│       ├── commands/       # Tauri commands (vault / items / import-export)
-│       ├── crypto/         # Argon2id KDF + AES-256-GCM cipher
+│       ├── commands/       # Tauri commands (vault / items / attachments / import-export)
+│       ├── crypto/         # Argon2id KDF + AES-256-GCM cipher + TOTP
 │       ├── db/             # schema, migrations, data access
-│       └── state.rs        # in-memory vault state (master key)
+│       ├── ipc/            # local socket protocol for the CLI
+│       └── state.rs        # in-memory vault state (master key, idle timer)
+├── cli/                    # standalone `seckeybox-cli` crate
 └── .github/workflows/      # tag-triggered release CI (3 platforms)
 ```
 
@@ -117,8 +147,7 @@ SecKeyBox/
 - [ ] Browser extension
 - [ ] Mobile apps
 - [ ] End-to-end encrypted cloud sync
-- [ ] Password generator
-- [ ] Attachments and tags
+- [ ] Attachments and tags — attachments done in v0.4.0, tags planned
 - [ ] Autocomplete / autofill
 
 ## Contributing

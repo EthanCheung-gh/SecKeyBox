@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.3.0-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.4.0-blue?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
   <a href="license"><img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License"></a>
 </p>
@@ -26,6 +26,12 @@
 
 **安装包不包含任何内置凭证。** 首次启动会引导你创建保险库并自设主密码。无账号、无云端、无遥测。
 
+## 截图
+
+| 保险库主界面 | 安全体检 |
+|--------------|----------|
+| ![主界面](docs/screenshots/main.png) | ![安全体检](docs/screenshots/security.png) |
+
 ## 功能
 
 | 领域 | 说明 |
@@ -41,10 +47,30 @@
 | 密钥历史 | 轮换密码 / 密钥前的旧值以密文归档，详情面板可查看、可复制 |
 | 安全体检 | 本地审计：弱密码、重复密钥、长期未轮换、缺少 2FA 的账号、临期许可证 |
 | 导入 / 导出 | JSON 备份导出；导入支持合并 / 替换。另支持从 Chrome / Bitwarden / 1Password / LastPass CSV 批量导入（folder 列自动建组、TOTP 列一并导入）及 `.env` 文件导入 |
-| 会话安全 | 5 分钟无活动自动锁定；复制敏感值 30 秒后自动清空剪贴板；密钥释放时内存清零 |
+| 命令行取密 | `seckeybox-cli` 通过本地 socket（权限 0600）从运行中的应用读取密钥：`export DB_PASSWORD=$(seckeybox-cli get "生产数据库")`。只读——永远无法解锁或修改保险库 |
+| 加密附件 | 任意条目可挂载 SSH 私钥、证书、`.env` 或图片（≤5 MB）；内容经 AES-256-GCM 加密，仅文件元数据可读 |
+| TOTP 导入 | 粘贴 `otpauth://` URI 或扫描二维码截图，自动填充密钥、签发方与账号（支持 6 位 / 30 秒标准条目） |
+| 会话安全 | 自动锁定可配置（关闭 / 1 / 5 / 15 / 30 分钟，由应用进程强制执行，窗口隐藏也生效）；剪贴板自动清除可配置（0 / 15 / 30 / 60 秒）；密钥释放时内存清零 |
 | 外观 | 亮色 / 暗色 / 跟随系统主题 |
 
 备注字段按设计以明文存储（便于搜索）；所有密码 / 密钥 / 秘密字段均为密文。
+
+## 命令行
+
+Linux `.deb` 会把 `/usr/bin/seckeybox-cli` 与主程序一起安装。CLI 自身不做任何解密：它通过本地 socket（权限 0600）与运行中的应用通信，仅在保险库已解锁时可用。
+
+```bash
+seckeybox-cli status                        # locked | unlocked
+seckeybox-cli list [查询词]                  # id <TAB> 类型 <TAB> 标题
+seckeybox-cli get "GitHub"                  # 输出主密钥字段
+seckeybox-cli get "GitHub" --field username
+seckeybox-cli get --id <id> --json
+seckeybox-cli totp "GitHub"                 # 当前 6 位验证码
+
+export DB_PASSWORD=$(seckeybox-cli get "生产数据库")
+```
+
+退出码：`0` 成功，`1` 保险库已锁定，`2` 未找到 / 标题歧义 / 参数错误，`3` 无法连接应用。
 
 ## 安全模型
 
@@ -70,7 +96,7 @@
 |------|------|
 | Windows | `.msi` 或 `.exe`（NSIS 安装器） |
 | macOS（Apple Silicon） | `.dmg` |
-| Linux | `.deb`、`.rpm`、`.AppImage` |
+| Linux | `.deb`（内含 `seckeybox-cli`）、`.rpm`、`.AppImage` |
 
 ## 从源码构建
 
@@ -83,6 +109,7 @@ npm install
 
 npm run tauri dev     # 以开发模式运行桌面应用
 npm run tauri build   # 在 src-tauri/target/release/bundle/ 产出安装包
+                      # （会先编译 CLI；deb 包内含 /usr/bin/seckeybox-cli）
 ```
 
 常用脚本：
@@ -91,7 +118,8 @@ npm run tauri build   # 在 src-tauri/target/release/bundle/ 产出安装包
 npm run dev           # 仅前端，跑在普通浏览器里（内置 mock 替代 Tauri
                       # 后端，附带演示数据，便于纯界面调试）
 npm run build         # 类型检查 + 生产构建
-cd src-tauri && cargo test   # 单元测试，含重加密与级联删除测试
+npm run build:cli     # 编译 seckeybox-cli（cli/target/release/seckeybox-cli）
+cd src-tauri && cargo test   # 单元测试，含重加密、级联删除与 IPC 协议
 ```
 
 ## 项目结构
@@ -105,10 +133,12 @@ SecKeyBox/
 │   └── mocks/              # 仅开发用的 Tauri 后端浏览器 mock
 ├── src-tauri/              # Rust 后端
 │   └── src/
-│       ├── commands/       # Tauri 命令（vault / items / 导入导出）
-│       ├── crypto/         # Argon2id KDF + AES-256-GCM
+│       ├── commands/       # Tauri 命令（vault / items / 附件 / 导入导出）
+│       ├── crypto/         # Argon2id KDF + AES-256-GCM + TOTP
 │       ├── db/             # 建表、迁移、数据访问
-│       └── state.rs        # 内存保险库状态（主密钥）
+│       ├── ipc/            # 供 CLI 使用的本地 socket 协议
+│       └── state.rs        # 内存保险库状态（主密钥、空闲计时）
+├── cli/                    # 独立编译的 `seckeybox-cli` crate
 └── .github/workflows/      # tag 触发的发布 CI（三平台）
 ```
 
@@ -117,8 +147,7 @@ SecKeyBox/
 - [ ] 浏览器扩展
 - [ ] 移动端应用
 - [ ] 端到端加密云同步
-- [ ] 密码生成器
-- [ ] 附件与标签
+- [ ] 附件与标签 —— 附件已在 v0.4.0 完成，标签待做
 - [ ] 自动填充
 
 ## 贡献
