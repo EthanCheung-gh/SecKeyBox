@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog } from '@/components/ui/dialog';
 import { PasswordStrength } from '@/components/ui/password-strength';
 import { PasswordGenerator } from '@/components/ui/password-generator';
+import { TotpImport } from '@/components/ui/totp-import';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 import type { EnvVarPair } from '@/types';
@@ -481,6 +482,16 @@ export function AddEditItemModal() {
                 onChange={(e) => set({ totpSecret: e.target.value })}
                 placeholder="JBSWY3DPEHPK3PXP（留空 = 不启用 / 清除）"
                 className="font-mono text-sm"
+              />
+              <TotpImport
+                onImport={(result) =>
+                  set({
+                    totpSecret: result.secret,
+                    // Fill an empty title from the QR metadata, but never
+                    // overwrite something the user already typed.
+                    title: form.title || result.issuer || result.account || '',
+                  })
+                }
               />
             </Field>
             <Field label="Website">
