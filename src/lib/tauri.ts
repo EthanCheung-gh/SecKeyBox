@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -202,4 +202,20 @@ export async function exportVault(): Promise<string> {
 
 export async function importVault(data: string, mode: 'merge' | 'replace'): Promise<ImportResult> {
   return invoke<ImportResult>('import_vault', { data, mode });
+}
+
+// --- Security policy (idle auto-lock) ---
+
+/** Tell the backend the user is active; throttled by the caller. */
+export async function recordActivity(): Promise<void> {
+  return invoke<void>('record_activity');
+}
+
+export async function getSecuritySettings(): Promise<SecuritySettings> {
+  return invoke<SecuritySettings>('get_security_settings');
+}
+
+/** `0` disables the idle lock. */
+export async function setAutoLockMinutes(minutes: number): Promise<void> {
+  return invoke<void>('set_auto_lock_minutes', { minutes });
 }

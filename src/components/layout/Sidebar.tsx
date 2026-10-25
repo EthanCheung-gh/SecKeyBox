@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { ImportExportModal } from '@/components/modals/ImportExportModal';
 import { ChangePasswordModal } from '@/components/modals/ChangePasswordModal';
+import { SettingsModal } from '@/components/modals/SettingsModal';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 
@@ -138,6 +139,7 @@ export function Sidebar() {
         </Button>
         <ImportExportModal />
         <ChangePasswordModal />
+        <SettingsModal />
         <div className="mt-2 flex items-center justify-between">
           <Button
             variant="ghost"

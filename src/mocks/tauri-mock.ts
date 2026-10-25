@@ -81,6 +81,8 @@ type MockState = {
   lastExportPath: string | null;
   /** 最近一次成功使用的主密码，仅用于校验「当前密码」是否正确 */
   masterPassword: string | null;
+  /** 空闲自动锁定的分钟数（0 = 关闭），与后端 vault_config 对齐 */
+  autoLockMinutes: number;
 };
 
 const state: MockState = {
@@ -91,6 +93,7 @@ const state: MockState = {
   mockFs: new Map(),
   lastExportPath: null,
   masterPassword: null,
+  autoLockMinutes: 5,
 };
 
 // ---------- utils ----------
@@ -1382,6 +1385,21 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     } catch {
       /* ignore */
     }
+    return null;
+  },
+
+  // 空闲锁定由真实 Rust watchdog 执行；mock 只维护策略值，
+  // 让设置界面在浏览器调试时可用。
+  record_activity: () => null,
+
+  get_security_settings: () => ({ auto_lock_minutes: state.autoLockMinutes }),
+
+  set_auto_lock_minutes: (a) => {
+    const minutes = num(a, 'minutes') ?? 0;
+    if (minutes < 0 || minutes > 1440) {
+      throw new Error('Auto-lock minutes must be between 0 and 1440');
+    }
+    state.autoLockMinutes = minutes;
     return null;
   },
 

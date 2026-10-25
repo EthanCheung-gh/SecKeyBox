@@ -17,7 +17,7 @@ pub use db::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use commands::*;
-    use tauri::{Listener, Manager};
+    use tauri::{Emitter, Listener, Manager};
     use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
     tauri::Builder::default()
@@ -67,10 +67,40 @@ pub fn run() {
             if let Some(main_window) = app_handle.get_webview_window("main") {
                 main_window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { .. } = event {
+                        use tauri_plugin_clipboard_manager::ClipboardExt;
+                        let _ = app_handle.clipboard().write_text("");
                         app_handle.exit(0);
                     }
                 });
             }
+
+            // Idle watchdog: locks the vault and clears the clipboard after the
+            // configured idle period. Runs in Rust so it still fires when the
+            // webview is hidden or its timers are throttled.
+            let watchdog_app = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                    let state = watchdog_app.state::<VaultState>();
+                    let minutes = state.auto_lock_minutes();
+                    if minutes <= 0 || !state.is_unlocked() {
+                        continue;
+                    }
+                    let idle = state.now_epoch_secs() - state.last_activity();
+                    if idle < minutes * 60 {
+                        continue;
+                    }
+                    state.lock();
+                    drop(state);
+
+                    let clipboard_app = watchdog_app.clone();
+                    let _ = watchdog_app.run_on_main_thread(move || {
+                        use tauri_plugin_clipboard_manager::ClipboardExt;
+                        let _ = clipboard_app.clipboard().write_text("");
+                    });
+                    let _ = watchdog_app.emit("vault-locked", "timeout");
+                }
+            });
 
             Ok(())
         })
@@ -115,6 +145,9 @@ pub fn run() {
             search_items,
             export_vault,
             import_vault,
+            record_activity,
+            get_security_settings,
+            set_auto_lock_minutes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 import { useActivityTracker } from '@/hooks/useActivityTracker';
@@ -53,6 +54,22 @@ function App() {
       .then(() => console.log('App: checkInitialized done, isInitialized =', useVaultStore.getState().isInitialized))
       .catch((e) => console.error('App: checkInitialized error', e));
   }, [checkInitialized]);
+
+  // The Rust watchdog locks the vault (idle timeout) and notifies the UI so
+  // it switches to the unlock screen right away.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string>('vault-locked', () => {
+      void useVaultStore.getState().lock();
+    })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(() => undefined);
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   console.log('App render:', { isInitialized, isUnlocked });
 

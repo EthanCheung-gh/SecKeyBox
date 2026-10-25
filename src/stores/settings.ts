@@ -5,7 +5,13 @@ type Theme = 'light' | 'dark' | 'system';
 
 interface SettingsState {
   theme: Theme;
+  /** Idle minutes before the vault locks; 0 disables. Mirrors the Rust setting. */
+  autoLockMinutes: number;
+  /** Seconds before the clipboard is cleared after a copy; 0 keeps it. */
+  clipboardClearSeconds: number;
   setTheme: (theme: Theme) => void;
+  setAutoLockMinutes: (minutes: number) => void;
+  setClipboardClearSeconds: (seconds: number) => void;
 }
 
 function getSystemTheme(): 'light' | 'dark' {
@@ -28,11 +34,17 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       theme: 'system',
+      autoLockMinutes: 5,
+      clipboardClearSeconds: 30,
       
       setTheme: (theme) => {
         set({ theme });
         applyTheme(theme);
       },
+
+      setAutoLockMinutes: (autoLockMinutes) => set({ autoLockMinutes }),
+
+      setClipboardClearSeconds: (clipboardClearSeconds) => set({ clipboardClearSeconds }),
     }),
     {
       name: 'seckeybox-settings',

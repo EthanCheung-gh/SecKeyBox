@@ -275,4 +275,10 @@ export type VaultError =
   | 'ItemNotFound'
   | 'GroupNotEmpty'
   | 'CryptoError'
-  | 'DatabaseError';
+  | 'DatabaseError'
+  | 'Validation';
+
+/** Idle-lock policy owned by the Rust backend (persisted in vault_config). */
+export interface SecuritySettings {
+  auto_lock_minutes: number;
+}

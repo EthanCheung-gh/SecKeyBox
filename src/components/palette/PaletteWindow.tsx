@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { copySecret } from '@/lib/clipboard';
 import type { ItemSummary, ItemDetail } from '@/types';
 
 // 全局快捷键呼出的迷你搜索条：搜索 → ↑/↓ 选择 → 回车复制主密钥 → Esc 关闭。
@@ -58,7 +59,7 @@ export function PaletteWindow() {
                       ? detail.license_key
                       : detail.password;
       if (value) {
-        await invoke('copy_to_clipboard', { text: value });
+        await copySecret(value);
         setStatus(`已复制 ${item.title} 的密钥`);
       } else {
         setStatus(`${item.title} 没有可复制的密钥`);

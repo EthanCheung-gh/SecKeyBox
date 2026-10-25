@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
-import { copyToClipboard } from '@/lib/tauri';
+import { copySecret } from '@/lib/clipboard';
 import { maskKeyValue, formatRotationDate, formatExpiryDate } from '@/lib/utils';
 import { TotpCode } from '@/components/ui/totp-code';
 import { SecretHistoryList } from '@/components/ui/secret-history-list';
@@ -27,10 +27,7 @@ export function DetailPanel() {
   }
 
   const handleCopy = async (text: string) => {
-    await copyToClipboard(text);
-    setTimeout(async () => {
-      await import('@/lib/tauri').then(api => api.clearClipboard());
-    }, 30000);
+    await copySecret(text);
   };
 
   const renderAccountDetail = () => {
