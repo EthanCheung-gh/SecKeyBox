@@ -7,6 +7,7 @@ mod import_export;
 mod audit;
 mod import_tools;
 mod security;
+mod attachments;
 
 pub use vault::*;
 pub use groups::*;
@@ -17,3 +18,4 @@ pub use import_export::*;
 pub use audit::*;
 pub use import_tools::*;
 pub use security::*;
+pub use attachments::*;

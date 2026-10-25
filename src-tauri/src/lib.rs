@@ -11,7 +11,7 @@ pub use db::{
     init_schema, insert_builtin_groups, run_migrations,
     Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, EnvVarPair, ItemDetail,
     DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail,
-    DbConnection, open_connection, get_db_path,
+    DbConnection, open_connection, get_db_path, AttachmentMeta,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -148,6 +148,11 @@ pub fn run() {
             record_activity,
             get_security_settings,
             set_auto_lock_minutes,
+            add_attachment_cmd,
+            list_attachments_cmd,
+            get_attachment_cmd,
+            save_attachment_to_path,
+            delete_attachment_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

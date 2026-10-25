@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 5;
+const SCHEMA_VERSION: i32 = 6;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -132,6 +132,19 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_secret_history_item ON secret_history(item_id, changed_at DESC);
+
+        CREATE TABLE IF NOT EXISTS item_attachments (
+            id TEXT PRIMARY KEY,
+            item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL,
+            content_type TEXT,
+            size INTEGER NOT NULL,
+            data_encrypted BLOB NOT NULL,
+            data_nonce BLOB NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_attachments_item ON item_attachments(item_id, created_at);
 
         CREATE INDEX IF NOT EXISTS idx_items_group ON items(group_id);
         CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
@@ -298,6 +311,30 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 changed_at INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_secret_history_item ON secret_history(item_id, changed_at DESC);
+            COMMIT;
+            "#,
+        )
+        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    // Migration to version 6: encrypted per-item attachments (SSH keys,
+    // certificates, .env bundles, images). Contents are AES-GCM encrypted
+    // with the vault key; only metadata is readable.
+    if version < 6 {
+        conn.execute_batch(
+            r#"
+            BEGIN;
+            CREATE TABLE IF NOT EXISTS item_attachments (
+                id TEXT PRIMARY KEY,
+                item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                filename TEXT NOT NULL,
+                content_type TEXT,
+                size INTEGER NOT NULL,
+                data_encrypted BLOB NOT NULL,
+                data_nonce BLOB NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_attachments_item ON item_attachments(item_id, created_at);
             COMMIT;
             "#,
         )

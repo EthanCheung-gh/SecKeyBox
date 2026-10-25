@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -218,4 +218,43 @@ export async function getSecuritySettings(): Promise<SecuritySettings> {
 /** `0` disables the idle lock. */
 export async function setAutoLockMinutes(minutes: number): Promise<void> {
   return invoke<void>('set_auto_lock_minutes', { minutes });
+}
+
+// --- Attachments (encrypted with the vault key) ---
+
+export async function listAttachments(itemId: string): Promise<AttachmentMeta[]> {
+  return invoke<AttachmentMeta[]>('list_attachments_cmd', { itemId });
+}
+
+export async function addAttachment(
+  itemId: string,
+  filename: string,
+  contentType: string | undefined,
+  dataBase64: string
+): Promise<AttachmentMeta> {
+  return invoke<AttachmentMeta>('add_attachment_cmd', {
+    itemId,
+    filename,
+    contentType,
+    dataBase64,
+  });
+}
+
+export async function getAttachment(
+  itemId: string,
+  attachmentId: string
+): Promise<AttachmentData> {
+  return invoke<AttachmentData>('get_attachment_cmd', { itemId, attachmentId });
+}
+
+export async function saveAttachmentToPath(
+  itemId: string,
+  attachmentId: string,
+  path: string
+): Promise<void> {
+  return invoke<void>('save_attachment_to_path', { itemId, attachmentId, path });
+}
+
+export async function deleteAttachment(itemId: string, attachmentId: string): Promise<void> {
+  return invoke<void>('delete_attachment_cmd', { itemId, attachmentId });
 }

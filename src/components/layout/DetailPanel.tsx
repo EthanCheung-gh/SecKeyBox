@@ -7,6 +7,7 @@ import { copySecret } from '@/lib/clipboard';
 import { maskKeyValue, formatRotationDate, formatExpiryDate } from '@/lib/utils';
 import { TotpCode } from '@/components/ui/totp-code';
 import { SecretHistoryList } from '@/components/ui/secret-history-list';
+import { AttachmentList } from '@/components/ui/attachment-list';
 import type { AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail } from '@/types';
 
 export function DetailPanel() {
@@ -401,6 +402,7 @@ export function DetailPanel() {
       {selectedItem.type !== 'account' && selectedItem.type !== 'env_var' && (
         <SecretHistoryList entries={selectedItem.secret_history} />
       )}
+      <AttachmentList itemId={selectedItem.id} />
     </div>
   );
 }

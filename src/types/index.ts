@@ -282,3 +282,20 @@ export type VaultError =
 export interface SecuritySettings {
   auto_lock_minutes: number;
 }
+
+/** Metadata for an encrypted per-item attachment (contents stay in the vault). */
+export interface AttachmentMeta {
+  id: string;
+  item_id: string;
+  filename: string;
+  content_type?: string | null;
+  size: number;
+  created_at: number;
+}
+
+/** A decrypted attachment fetched for preview/save. */
+export interface AttachmentData {
+  filename: string;
+  content_type?: string | null;
+  data_base64: string;
+}

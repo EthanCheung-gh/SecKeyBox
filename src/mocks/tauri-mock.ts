@@ -83,6 +83,18 @@ type MockState = {
   masterPassword: string | null;
   /** 空闲自动锁定的分钟数（0 = 关闭），与后端 vault_config 对齐 */
   autoLockMinutes: number;
+  /** 加密附件的内存镜像（浏览器调试用，data_base64 不加密） */
+  attachments: MockAttachment[];
+};
+
+type MockAttachment = {
+  id: string;
+  item_id: string;
+  filename: string;
+  content_type: string | null;
+  size: number;
+  data_base64: string;
+  created_at: number;
 };
 
 const state: MockState = {
@@ -94,6 +106,7 @@ const state: MockState = {
   lastExportPath: null,
   masterPassword: null,
   autoLockMinutes: 5,
+  attachments: [],
 };
 
 // ---------- utils ----------
@@ -1400,6 +1413,73 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
       throw new Error('Auto-lock minutes must be between 0 and 1440');
     }
     state.autoLockMinutes = minutes;
+    return null;
+  },
+
+  // --- attachments（浏览器调试：内存保存，不做真实加密） ---
+
+  add_attachment_cmd: (a) => {
+    if (!state.unlocked) throw new Error('VaultLocked');
+    const itemId = str(a, 'itemId');
+    const filename = str(a, 'filename');
+    const dataBase64 = str(a, 'dataBase64');
+    const size = Math.floor((dataBase64.length * 3) / 4);
+    if (size > 5 * 1024 * 1024) {
+      throw new Error('Attachment exceeds the 5 MB limit');
+    }
+    if (!state.items.some((item) => item.id === itemId)) {
+      throw new Error('ItemNotFound');
+    }
+    const meta: MockAttachment = {
+      id: `att-${++seq}`,
+      item_id: itemId,
+      filename,
+      content_type: str(a, 'contentType') ?? null,
+      size,
+      data_base64: dataBase64,
+      created_at: now(),
+    };
+    state.attachments.push(meta);
+    const { data_base64: _data, ...summary } = meta;
+    return summary;
+  },
+
+  list_attachments_cmd: (a) => {
+    if (!state.unlocked) return [];
+    const itemId = str(a, 'itemId');
+    return state.attachments
+      .filter((att) => att.item_id === itemId)
+      .map(({ data_base64: _data, ...meta }) => meta);
+  },
+
+  get_attachment_cmd: (a) => {
+    if (!state.unlocked) throw new Error('VaultLocked');
+    const att = state.attachments.find(
+      (x) => x.id === str(a, 'attachmentId') && x.item_id === str(a, 'itemId'),
+    );
+    if (!att) throw new Error('ItemNotFound');
+    return {
+      filename: att.filename,
+      content_type: att.content_type,
+      data_base64: att.data_base64,
+    };
+  },
+
+  save_attachment_to_path: (a) => {
+    const att = state.attachments.find(
+      (x) => x.id === str(a, 'attachmentId') && x.item_id === str(a, 'itemId'),
+    );
+    if (!att) throw new Error('ItemNotFound');
+    state.mockFs.set(str(a, 'path'), att.data_base64);
+    return null;
+  },
+
+  delete_attachment_cmd: (a) => {
+    const attachmentId = str(a, 'attachmentId');
+    const itemId = str(a, 'itemId');
+    state.attachments = state.attachments.filter(
+      (x) => !(x.id === attachmentId && x.item_id === itemId),
+    );
     return null;
   },
 
