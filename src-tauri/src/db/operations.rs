@@ -956,14 +956,17 @@ pub fn update_account_item(
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
     // TOTP secret: None = keep current value, Some("") = clear, Some(s) = set.
+    // Each fragment starts with a comma and carries no trailing comma so the
+    // statement stays valid for all three cases (a trailing comma produced
+    // "... NULL, WHERE ..." and broke every edit).
     let totp_update = match totp_secret {
         None => String::new(),
-        Some("") => "totp_secret_encrypted = NULL, totp_secret_nonce = NULL,".to_string(),
+        Some("") => ", totp_secret_encrypted = NULL, totp_secret_nonce = NULL".to_string(),
         Some(s) => {
             let e = crate::crypto::encrypt(key, s.as_bytes())
                 .map_err(|e| VaultError::CryptoError(e.to_string()))?;
             format!(
-                "totp_secret_encrypted = X'{}', totp_secret_nonce = X'{}',",
+                ", totp_secret_encrypted = X'{}', totp_secret_nonce = X'{}'",
                 hex_encode(&e.ciphertext),
                 hex_encode(&e.nonce)
             )
@@ -976,14 +979,14 @@ pub fn update_account_item(
 
         conn.execute(
             &format!(
-                "UPDATE account_items SET username = ?1, password_encrypted = ?2, password_nonce = ?3, website = ?4, notes = ?5, {totp_update} WHERE item_id = ?6"
+                "UPDATE account_items SET username = ?1, password_encrypted = ?2, password_nonce = ?3, website = ?4, notes = ?5{totp_update} WHERE item_id = ?6"
             ),
             params![username, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), website, notes, id],
         ).map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     } else {
         conn.execute(
             &format!(
-                "UPDATE account_items SET username = ?1, website = ?2, notes = ?3, {totp_update} WHERE item_id = ?4"
+                "UPDATE account_items SET username = ?1, website = ?2, notes = ?3{totp_update} WHERE item_id = ?4"
             ),
             params![username, website, notes, id],
         )
@@ -2424,6 +2427,78 @@ mod tests {
         delete_group(&conn, "built-in-accounts").unwrap();
         assert!(get_all_groups(&conn).unwrap().iter().all(|g| g.id != "built-in-accounts"));
         assert!(get_all_items(&conn).unwrap().iter().all(|i| i.id != builtin_item));
+    }
+
+    #[test]
+    fn account_update_handles_all_totp_branches() {
+        let conn = seeded_conn();
+        let key = derive_key("totp-branch-password", None).unwrap().key;
+        let id = create_account_item(
+            &conn,
+            "built-in-accounts",
+            "GitHub",
+            "octocat",
+            "old-pass",
+            None,
+            None,
+            None,
+            &key,
+        )
+        .unwrap();
+
+        // None = keep the current secret. This used to fail with
+        // "... NULL, WHERE ..." because the SQL fragment kept a trailing comma.
+        update_account_item(&conn, &id, "GitHub", "octocat", None, None, None, None, &key).unwrap();
+        assert!(get_account_item_detail(&conn, &id, &key)
+            .unwrap()
+            .totp_secret
+            .is_none());
+
+        // Some(secret) = set it.
+        update_account_item(
+            &conn,
+            &id,
+            "GitHub",
+            "octocat",
+            None,
+            None,
+            None,
+            Some("JBSWY3DPEHPK3PXP"),
+            &key,
+        )
+        .unwrap();
+        assert_eq!(
+            get_account_item_detail(&conn, &id, &key)
+                .unwrap()
+                .totp_secret
+                .as_deref(),
+            Some("JBSWY3DPEHPK3PXP")
+        );
+
+        // Some("") = clear it.
+        update_account_item(&conn, &id, "GitHub", "octocat", None, None, None, Some(""), &key)
+            .unwrap();
+        assert!(get_account_item_detail(&conn, &id, &key)
+            .unwrap()
+            .totp_secret
+            .is_none());
+
+        // Password rotation still works alongside a TOTP set.
+        update_account_item(
+            &conn,
+            &id,
+            "GitHub",
+            "octocat",
+            Some("new-pass"),
+            None,
+            None,
+            Some("JBSWY3DPEHPK3PXP"),
+            &key,
+        )
+        .unwrap();
+        let detail = get_account_item_detail(&conn, &id, &key).unwrap();
+        assert_eq!(detail.password, "new-pass");
+        assert_eq!(detail.totp_secret.as_deref(), Some("JBSWY3DPEHPK3PXP"));
     }
 
     #[test]

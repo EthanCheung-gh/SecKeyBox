@@ -436,7 +436,15 @@ export function AddEditItemModal() {
     } catch (err) {
       // store 已写入全局 error；这里在弹窗内直接展示，且不关闭弹窗，
       // 避免出现“提交失败却看起来成功”的无感知体验。
-      setSubmitError(err instanceof Error ? err.message : String(err));
+      // Tauri 拒绝的是一个普通对象（如 { Validation: "..." }），
+      // String(err) 会得到 "[object Object]"，所以对象要序列化展示。
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : JSON.stringify(err)
+      );
       return;
     }
     handleClose();
@@ -793,7 +801,9 @@ export function AddEditItemModal() {
         <Field label="Notes">
           <textarea value={form.notes} onChange={(e) => set({ notes: e.target.value })} className={textAreaClass} rows={3} />
         </Field>
-        <div className="flex justify-end gap-2">
+        {/* Sticky action bar: on short windows the form scrolls but Save must
+            stay reachable without scrolling to the very bottom. */}
+        <div className="sticky bottom-0 -mx-6 mt-2 flex justify-end gap-2 border-t border-gray-200 bg-white px-6 pb-1 pt-4 dark:border-gray-700 dark:bg-gray-800">
           <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
           </Button>
