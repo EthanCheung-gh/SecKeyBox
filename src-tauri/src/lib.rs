@@ -3,6 +3,7 @@ mod crypto;
 mod db;
 mod state;
 mod commands;
+mod ipc;
 
 pub use error::{VaultError, Result};
 pub use crypto::{derive_key, verify_password, encrypt, decrypt, SecureKey, EncryptedData};
@@ -101,6 +102,10 @@ pub fn run() {
                     let _ = watchdog_app.emit("vault-locked", "timeout");
                 }
             });
+
+            // Local socket for the `seckeybox` CLI (read-only, unlocked only).
+            #[cfg(unix)]
+            ipc::spawn(app.handle().clone());
 
             Ok(())
         })

@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "npm run build && npm run build:cli"
   },
   "bundle": {
     "active": true,
@@ -19,7 +19,14 @@
       "icons/icon.icns",
       "icons/icon.ico",
       "icons/icon.png"
-    ]
+    ],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/bin/seckeybox-cli": "../cli/target/release/seckeybox-cli"
+        }
+      }
+    }
   },
   "app": {
     "withGlobalTauri": true,

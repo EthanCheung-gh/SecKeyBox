@@ -95,6 +95,33 @@ pub fn get_items_by_group_cmd(
 }
 
 #[tauri::command]
+/// Load and decrypt one item's detail. Shared by the Tauri command, the
+/// local-socket IPC layer and the quick-search palette.
+pub fn load_item_detail(
+    conn: &rusqlite::Connection,
+    id: &str,
+    key: &[u8; 32],
+) -> Result<ItemDetail> {
+    let item_type: String = conn
+        .query_row("SELECT type FROM items WHERE id = ?1", [id], |row| {
+            row.get(0)
+        })
+        .map_err(|_| VaultError::ItemNotFound)?;
+
+    match item_type.as_str() {
+        "account" => get_account_item_detail(conn, id, key).map(ItemDetail::Account),
+        "api_key" => get_api_key_item_detail(conn, id, key).map(ItemDetail::ApiKey),
+        "env_var" => get_env_var_item_detail(conn, id, key).map(ItemDetail::EnvVar),
+        "database" => get_database_item_detail(conn, id, key).map(ItemDetail::Database),
+        "ssh" => get_ssh_item_detail(conn, id, key).map(ItemDetail::Ssh),
+        "cloud" => get_cloud_item_detail(conn, id, key).map(ItemDetail::Cloud),
+        "license" => get_license_item_detail(conn, id, key).map(ItemDetail::License),
+        "smtp" => get_smtp_item_detail(conn, id, key).map(ItemDetail::Smtp),
+        _ => Err(VaultError::ItemNotFound),
+    }
+}
+
+#[tauri::command]
 pub fn get_item_detail(
     db: State<DbConnection>,
     vault_state: State<VaultState>,
@@ -113,35 +140,7 @@ pub fn get_item_detail(
         .lock()
         .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
-    let item_type: String = conn
-        .query_row("SELECT type FROM items WHERE id = ?1", [&id], |row| {
-            row.get(0)
-        })
-        .map_err(|_| VaultError::ItemNotFound)?;
-
-    match item_type.as_str() {
-        "account" => {
-            get_account_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Account(d))
-        }
-        "api_key" => {
-            get_api_key_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::ApiKey(d))
-        }
-        "env_var" => {
-            get_env_var_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::EnvVar(d))
-        }
-        "database" => {
-            get_database_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Database(d))
-        }
-        "ssh" => get_ssh_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Ssh(d)),
-        "cloud" => {
-            get_cloud_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Cloud(d))
-        }
-        "license" => {
-            get_license_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::License(d))
-        }
-        "smtp" => get_smtp_item_detail(&conn, &id, key.as_bytes()).map(|d| ItemDetail::Smtp(d)),
-        _ => Err(VaultError::ItemNotFound),
-    }
+    load_item_detail(&conn, &id, key.as_bytes())
 }
 
 #[tauri::command]

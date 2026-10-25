@@ -12,6 +12,7 @@ mod attachments;
 pub use vault::*;
 pub use groups::*;
 pub use items::*;
+pub use items::load_item_detail;
 pub use clipboard::*;
 pub use quick_search::*;
 pub use import_export::*;
