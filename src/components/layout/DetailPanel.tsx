@@ -27,6 +27,8 @@ export function DetailPanel() {
   const [showCustomValues, setShowCustomValues] = useState<Record<string, boolean>>({});
 
   const selectedId = selectedItem?.id;
+  // Re-fetch metadata after an edit (the id alone does not change).
+  const selectedUpdatedAt = selectedItem?.updated_at;
   useEffect(() => {
     if (!selectedId) {
       setCustomFields([]);
@@ -54,7 +56,7 @@ export function DetailPanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, selectedUpdatedAt]);
 
   if (!selectedItem) {
     return (
