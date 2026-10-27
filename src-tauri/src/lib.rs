@@ -15,9 +15,21 @@ pub use db::{
     DbConnection, open_connection, get_db_path, AttachmentMeta, CustomField, Tag,
 };
 
+/// Show, restore and focus the main window (tray click, menu item).
+fn focus_main_window(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use commands::*;
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
     use tauri::{Emitter, Manager};
     use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
@@ -68,14 +80,58 @@ pub fn run() {
                 eprintln!("[WARN] Failed to register global shortcut: {:?}", e);
             }
 
-            // Exit app when main window is closed
+            // System tray: closing the window keeps the app resident so the
+            // global hotkey and the watchdog keep working. Quit from the menu.
+            let show_item = MenuItem::with_id(app, "show", "Show SecKeyBox", true, None::<&str>)?;
+            let lock_item = MenuItem::with_id(app, "lock", "Lock vault", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_item, &lock_item, &quit_item])?;
+
+            let mut tray_builder = TrayIconBuilder::new()
+                .tooltip("SecKeyBox")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => focus_main_window(app),
+                    "lock" => {
+                        app.state::<VaultState>().lock();
+                        let _ = app.emit("vault-locked", "tray");
+                    }
+                    "quit" => {
+                        use tauri_plugin_clipboard_manager::ClipboardExt;
+                        let _ = app.clipboard().write_text("");
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        focus_main_window(tray.app_handle());
+                    }
+                });
+            if let Some(icon) = app.default_window_icon() {
+                tray_builder = tray_builder.icon(icon.clone());
+            }
+            if let Err(e) = tray_builder.build(app) {
+                eprintln!("[WARN] Failed to create tray icon: {:?}", e);
+            }
+
+            // Close button hides to the tray instead of quitting.
             let app_handle = app.handle().clone();
             if let Some(main_window) = app_handle.get_webview_window("main") {
                 main_window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
                         use tauri_plugin_clipboard_manager::ClipboardExt;
                         let _ = app_handle.clipboard().write_text("");
-                        app_handle.exit(0);
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.hide();
+                        }
                     }
                 });
             }
