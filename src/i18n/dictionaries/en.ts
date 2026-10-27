@@ -350,6 +350,21 @@ export const en: Record<string, string> = {
   'update.restart': 'Restart now',
   'update.error': 'Update check failed: {message}',
 
+  // custom fields & tags
+  'customFields.title': 'Custom fields',
+  'customFields.empty': 'No custom fields. Add key/value pairs for anything the template does not cover.',
+  'customFields.add': 'Add field',
+  'customFields.key': 'Key',
+  'customFields.value': 'Value',
+  'customFields.remove': 'Remove field',
+  'tags.title': 'Tags',
+  'tags.none': 'No tags',
+  'tags.add': 'New tag',
+  'tags.namePlaceholder': 'Tag name',
+  'tags.create': 'Create',
+  'tags.deleteConfirm': 'Delete tag "{name}"? It will be removed from all items.',
+  'tags.filterHint': 'Filtering by tag',
+
   // generic errors
   'error.unknown': 'Something went wrong',
 };

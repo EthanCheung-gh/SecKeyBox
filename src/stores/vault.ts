@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail, EnvVarPair } from '@/types';
+import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail, EnvVarPair, Tag } from '@/types';
 import * as api from '@/lib/tauri'; // 保留读取操作的 api 调用
 
 interface VaultState {
   isInitialized: boolean | null;
   isUnlocked: boolean;
   groups: Group[];
+  tags: Tag[];
   items: ItemSummary[];
   /**
    * search_items 的最新结果（带触发时的 query 快照，用于丢弃过期响应）。
@@ -22,6 +23,10 @@ interface VaultState {
   unlock: (password: string) => Promise<void>;
   lock: () => Promise<void>;
   loadGroups: () => Promise<void>;
+  loadTags: () => Promise<void>;
+  createTag: (name: string) => Promise<void>;
+  deleteTag: (id: string) => Promise<void>;
+  loadItemsByTag: (tagId: string) => Promise<void>;
   loadItems: (groupId?: string) => Promise<void>;
   searchItems: (query: string) => Promise<void>;
   clearSearch: () => void;
@@ -38,7 +43,7 @@ interface VaultState {
     website?: string;
     notes?: string;
     totpSecret?: string;
-  }) => Promise<void>;
+  }) => Promise<string | undefined>;
   updateItem: (id: string, data: {
     title: string;
     username: string;
@@ -57,7 +62,7 @@ interface VaultState {
     endpoint?: string;
     authMethod?: string;
     notes?: string;
-  }) => Promise<void>;
+  }) => Promise<string | undefined>;
   updateApiKeyItem: (id: string, data: {
     title: string;
     keyName: string;
@@ -71,7 +76,7 @@ interface VaultState {
     title: string;
     variables: EnvVarPair[];
     notes?: string;
-  }) => Promise<void>;
+  }) => Promise<string | undefined>;
   updateEnvVarItem: (id: string, data: {
     title: string;
     variables: EnvVarPair[];
@@ -88,7 +93,7 @@ interface VaultState {
     password?: string;
     connectionUrl?: string;
     notes?: string;
-  }) => Promise<void>;
+  }) => Promise<string | undefined>;
   updateDatabaseItem: (id: string, data: {
     title: string;
     dbType: string;
@@ -110,7 +115,7 @@ interface VaultState {
     keyPath?: string;
     passphrase?: string;
     notes?: string;
-  }) => Promise<void>;
+  }) => Promise<string | undefined>;
   updateSshItem: (id: string, data: {
     title: string;
     host: string;
@@ -129,7 +134,7 @@ interface VaultState {
     secret: string;
     region?: string;
     notes?: string;
-  }) => Promise<void>;
+  }) => Promise<string | undefined>;
   updateCloudItem: (id: string, data: {
     title: string;
     provider: string;
@@ -146,7 +151,7 @@ interface VaultState {
     boundEmail?: string;
     expiryDate?: number;
     notes?: string;
-  }) => Promise<void>;
+  }) => Promise<string | undefined>;
   updateLicenseItem: (id: string, data: {
     title: string;
     softwareName: string;
@@ -165,7 +170,7 @@ interface VaultState {
     password: string;
     fromAddress?: string;
     notes?: string;
-  }) => Promise<void>;
+  }) => Promise<string | undefined>;
   updateSmtpItem: (id: string, data: {
     title: string;
     host: string;
@@ -184,6 +189,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   isInitialized: null,
   isUnlocked: false,
   groups: [],
+  tags: [],
   items: [],
   searchResults: null,
   selectedItem: null,
@@ -233,6 +239,42 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     try {
       const groups = await api.getGroups();
       set({ groups });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  loadTags: async () => {
+    try {
+      const tags = await api.getTags();
+      set({ tags });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  createTag: async (name) => {
+    try {
+      await api.createTag(name);
+      await get().loadTags();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  deleteTag: async (id) => {
+    try {
+      await api.deleteTag(id);
+      await get().loadTags();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  loadItemsByTag: async (tagId) => {
+    try {
+      const items = await api.getItemsByTag(tagId);
+      set({ items });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -320,7 +362,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   createItem: async (data) => {
     try {
-      await invoke('create_new_account_item', {
+      const newId = await invoke<string>('create_new_account_item', {
         groupId: data.groupId, 
         title: data.title,
         username: data.username,
@@ -330,6 +372,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         totpSecret: data.totpSecret
       });
       await get().loadItems();
+      return newId;
     } catch (e) {
       console.error('[DEBUG] createItem error:', e);
       set({ error: String(e) });
@@ -381,7 +424,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   createApiKeyItem: async (data) => {
     try {
-      await invoke('create_new_api_key_item', {
+      const newId = await invoke<string>('create_new_api_key_item', {
         request: {
           group_id: data.groupId,
           title: data.title,
@@ -393,6 +436,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         }
       });
       await get().loadItems();
+      return newId;
     } catch (e) {
       console.error('[DEBUG] createApiKeyItem error:', e);
       set({ error: String(e) });
@@ -429,13 +473,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   createEnvVarItem: async (data) => {
     try {
-      await invoke('create_new_env_var_item', {
+      const newId = await invoke<string>('create_new_env_var_item', {
         groupId: data.groupId,
         title: data.title,
         variables: data.variables,
         notes: data.notes
       });
       await get().loadItems();
+      return newId;
     } catch (e) {
       console.error('[DEBUG] createEnvVarItem error:', e);
       set({ error: String(e) });
@@ -468,7 +513,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   createDatabaseItem: async (data) => {
     try {
-      await invoke('create_new_database_item', {
+      const newId = await invoke<string>('create_new_database_item', {
         groupId: data.groupId,
         title: data.title,
         dbType: data.dbType,
@@ -481,6 +526,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         notes: data.notes
       });
       await get().loadItems();
+      return newId;
     } catch (e) {
       console.error('[DEBUG] createDatabaseItem error:', e);
       set({ error: String(e) });
@@ -519,7 +565,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   createSshItem: async (data) => {
     try {
-      await invoke('create_new_ssh_item', {
+      const newId = await invoke<string>('create_new_ssh_item', {
         groupId: data.groupId,
         title: data.title,
         host: data.host,
@@ -531,6 +577,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         notes: data.notes
       });
       await get().loadItems();
+      return newId;
     } catch (e) {
       console.error('[DEBUG] createSshItem error:', e);
       set({ error: String(e) });
@@ -568,7 +615,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   createCloudItem: async (data) => {
     try {
-      await invoke('create_new_cloud_item', {
+      const newId = await invoke<string>('create_new_cloud_item', {
         groupId: data.groupId,
         title: data.title,
         provider: data.provider,
@@ -578,6 +625,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         notes: data.notes
       });
       await get().loadItems();
+      return newId;
     } catch (e) {
       console.error('[DEBUG] createCloudItem error:', e);
       set({ error: String(e) });
@@ -613,7 +661,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   createLicenseItem: async (data) => {
     try {
-      await invoke('create_new_license_item', {
+      const newId = await invoke<string>('create_new_license_item', {
         groupId: data.groupId,
         title: data.title,
         softwareName: data.softwareName,
@@ -623,6 +671,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         notes: data.notes
       });
       await get().loadItems();
+      return newId;
     } catch (e) {
       console.error('[DEBUG] createLicenseItem error:', e);
       set({ error: String(e) });
@@ -658,7 +707,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   createSmtpItem: async (data) => {
     try {
-      await invoke('create_new_smtp_item', {
+      const newId = await invoke<string>('create_new_smtp_item', {
         groupId: data.groupId,
         title: data.title,
         host: data.host,
@@ -670,6 +719,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         notes: data.notes
       });
       await get().loadItems();
+      return newId;
     } catch (e) {
       console.error('[DEBUG] createSmtpItem error:', e);
       set({ error: String(e) });

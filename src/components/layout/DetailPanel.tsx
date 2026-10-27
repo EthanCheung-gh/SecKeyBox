@@ -1,5 +1,5 @@
 import { Copy, Eye, EyeOff, Edit, Trash2, Star } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
@@ -8,6 +8,8 @@ import { maskKeyValue, formatRotationDate, formatExpiryDate } from '@/lib/utils'
 import { TotpCode } from '@/components/ui/totp-code';
 import { SecretHistoryList } from '@/components/ui/secret-history-list';
 import { AttachmentList } from '@/components/ui/attachment-list';
+import { listCustomFields, getItemTags, getTags } from '@/lib/tauri';
+import type { CustomField, Tag } from '@/types';
 import { useI18n } from '@/i18n';
 import type { AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail } from '@/types';
 
@@ -20,6 +22,39 @@ export function DetailPanel() {
   const [showPassword, setShowPassword] = useState(false);
   const [showKeyValue, setShowKeyValue] = useState(false);
   const [showEnvVarValues, setShowEnvVarValues] = useState<Record<number, boolean>>({});
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [itemTags, setItemTags] = useState<Tag[]>([]);
+  const [showCustomValues, setShowCustomValues] = useState<Record<string, boolean>>({});
+
+  const selectedId = selectedItem?.id;
+  useEffect(() => {
+    if (!selectedId) {
+      setCustomFields([]);
+      setItemTags([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [fields, tagIds, allTags] = await Promise.all([
+          listCustomFields(selectedId),
+          getItemTags(selectedId),
+          getTags(),
+        ]);
+        if (cancelled) return;
+        setCustomFields(fields);
+        setItemTags(allTags.filter((tag) => tagIds.includes(tag.id)));
+      } catch {
+        if (!cancelled) {
+          setCustomFields([]);
+          setItemTags([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
 
   if (!selectedItem) {
     return (
@@ -382,6 +417,18 @@ export function DetailPanel() {
         <div>
           <h1 className="text-xl font-semibold dark:text-gray-100">{selectedItem.title}</h1>
           <span className="text-sm text-gray-500 capitalize dark:text-gray-400">{t(`type.${selectedItem.type}`)}</span>
+          {itemTags.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {itemTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="rounded-full bg-primary-50 px-2 py-0.5 text-xs text-primary-700 dark:bg-primary-900/40 dark:text-primary-200"
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex gap-2">
           <Button
@@ -408,6 +455,42 @@ export function DetailPanel() {
       {selectedItem.type !== 'account' && selectedItem.type !== 'env_var' && (
         <SecretHistoryList entries={selectedItem.secret_history} />
       )}
+      {customFields.length > 0 && (
+        <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
+          <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
+            {t('customFields.title')}
+          </label>
+          <div className="space-y-2">
+            {customFields.map((field) => (
+              <div key={field.id} className="flex items-center gap-2">
+                <span className="w-40 shrink-0 truncate text-sm text-gray-500 dark:text-gray-400">
+                  {field.key}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-mono text-sm dark:text-gray-200">
+                  {showCustomValues[field.id] ? field.value : '••••••••'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setShowCustomValues((prev) => ({ ...prev, [field.id]: !prev[field.id] }))
+                  }
+                >
+                  {showCustomValues[field.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleCopy(field.value, field.key)}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <AttachmentList itemId={selectedItem.id} />
     </div>
   );

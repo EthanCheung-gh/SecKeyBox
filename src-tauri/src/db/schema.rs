@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 7;
+const SCHEMA_VERSION: i32 = 8;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -156,6 +156,32 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
+
+        CREATE TABLE IF NOT EXISTS custom_fields (
+            id TEXT PRIMARY KEY,
+            item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+            field_key TEXT NOT NULL,
+            value_encrypted BLOB NOT NULL,
+            value_nonce BLOB NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_custom_fields_item ON custom_fields(item_id, sort_order);
+
+        CREATE TABLE IF NOT EXISTS tags (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            color TEXT,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS item_tags (
+            item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+            tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+            PRIMARY KEY (item_id, tag_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id);
 
         CREATE INDEX IF NOT EXISTS idx_items_group ON items(group_id);
         CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
@@ -367,6 +393,41 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 created_at INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
+            COMMIT;
+            "#,
+        )
+        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    // Migration to version 8: per-item custom fields (encrypted values) and
+    // cross-group tags.
+    if version < 8 {
+        conn.execute_batch(
+            r#"
+            BEGIN;
+            CREATE TABLE IF NOT EXISTS custom_fields (
+                id TEXT PRIMARY KEY,
+                item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                field_key TEXT NOT NULL,
+                value_encrypted BLOB NOT NULL,
+                value_nonce BLOB NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE INDEX IF NOT EXISTS idx_custom_fields_item ON custom_fields(item_id, sort_order);
+
+            CREATE TABLE IF NOT EXISTS tags (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                color TEXT,
+                created_at INTEGER NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS item_tags (
+                item_id TEXT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                PRIMARY KEY (item_id, tag_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id);
             COMMIT;
             "#,
         )

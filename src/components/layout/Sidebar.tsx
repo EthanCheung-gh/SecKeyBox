@@ -12,9 +12,14 @@ import { useI18n, groupDisplayName } from '@/i18n';
 export function Sidebar() {
   const { t } = useI18n();
   const groups = useVaultStore((s) => s.groups);
+  const tags = useVaultStore((s) => s.tags);
+  const loadItemsByTag = useVaultStore((s) => s.loadItemsByTag);
   const loadItems = useVaultStore((s) => s.loadItems);
   const lock = useVaultStore((s) => s.lock);
   const selectedGroupId = useUIStore((s) => s.selectedGroupId);
+  const selectedTagId = useUIStore((s) => s.selectedTagId);
+  const setSelectedTag = useUIStore((s) => s.setSelectedTag);
+  const openAddTagModal = useUIStore((s) => s.openAddTagModal);
   const showFavoritesOnly = useUIStore((s) => s.showFavoritesOnly);
   const searchQuery = useUIStore((s) => s.searchQuery);
   const setSearchQuery = useUIStore((s) => s.setSearchQuery);
@@ -34,6 +39,11 @@ export function Sidebar() {
   const handleSelectFavorites = () => {
     setShowFavoritesOnly(true);
     loadItems(undefined);
+  };
+
+  const handleSelectTag = (id: string) => {
+    setSelectedTag(id);
+    void loadItemsByTag(id);
   };
 
   return (
@@ -127,6 +137,46 @@ export function Sidebar() {
           onClick={openAddGroupModal}
         >
           <Plus className="mr-2 h-4 w-4" /> {t('sidebar.addGroup')}
+        </Button>
+
+        <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+
+        <div className="px-3 py-1 text-xs uppercase tracking-wide text-gray-400">
+          {t('tags.title')}
+        </div>
+        {tags.map((tag) => (
+          <div key={tag.id} className="group flex items-center">
+            <button
+              onClick={() => handleSelectTag(tag.id)}
+              className={`flex-1 rounded-md px-3 py-1.5 text-left text-sm ${
+                selectedTagId === tag.id
+                  ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-100'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'
+              }`}
+            >
+              # {tag.name}
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm(t('tags.deleteConfirm', { name: tag.name }))) {
+                  void useVaultStore.getState().deleteTag(tag.id);
+                  if (selectedTagId === tag.id) setSelectedTag(null);
+                }
+              }}
+              className="rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-500 dark:hover:bg-gray-600"
+              title={t('common.delete')}
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-gray-500 dark:text-gray-400"
+          onClick={openAddTagModal}
+        >
+          <Plus className="mr-2 h-4 w-4" /> {t('tags.add')}
         </Button>
       </div>
       

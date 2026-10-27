@@ -350,6 +350,21 @@ export const zh: Record<string, string> = {
   'update.restart': '立即重启',
   'update.error': '检查更新失败：{message}',
 
+  // custom fields & tags
+  'customFields.title': '自定义字段',
+  'customFields.empty': '暂无自定义字段。模板之外的信息可以用键值对记录。',
+  'customFields.add': '添加字段',
+  'customFields.key': '键',
+  'customFields.value': '值',
+  'customFields.remove': '删除字段',
+  'tags.title': '标签',
+  'tags.none': '暂无标签',
+  'tags.add': '新建标签',
+  'tags.namePlaceholder': '标签名称',
+  'tags.create': '创建',
+  'tags.deleteConfirm': '删除标签「{name}」？它会从所有条目上移除。',
+  'tags.filterHint': '按标签筛选',
+
   // generic errors
   'error.unknown': '出错了',
 };

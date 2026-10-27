@@ -524,6 +524,55 @@ pub fn get_all_items(conn: &Connection) -> Result<Vec<ItemSummary>> {
     Ok(items)
 }
 
+/// One item summary (same projection as get_all_items).
+pub fn get_item_summary(conn: &Connection, id: &str) -> Result<Option<ItemSummary>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT i.id, i.title,
+                COALESCE(a.username, ak.key_name, ev.key,
+                    db.host || COALESCE(':' || db.port, ''),
+                    s.username || '@' || s.host,
+                    c.provider || ' · ' || c.access_key_id,
+                    l.bound_email,
+                    sm.host || COALESCE(':' || sm.port, ''),
+                    '') as subtitle,
+                i.icon, i.type, i.is_favorite, i.group_id, i.created_at, i.updated_at
+             FROM items i
+             LEFT JOIN account_items a ON i.id = a.item_id
+             LEFT JOIN api_key_items ak ON i.id = ak.item_id
+             LEFT JOIN env_var_items ev ON i.id = ev.item_id AND ev.sort_order = 0
+             LEFT JOIN database_items db ON i.id = db.item_id
+             LEFT JOIN ssh_items s ON i.id = s.item_id
+             LEFT JOIN cloud_items c ON i.id = c.item_id
+             LEFT JOIN license_items l ON i.id = l.item_id
+             LEFT JOIN smtp_items sm ON i.id = sm.item_id
+             WHERE i.id = ?1",
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    let mut rows = stmt
+        .query_map([id], |row| {
+            Ok(ItemSummary {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                subtitle: row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                icon: row.get(3)?,
+                item_type: row.get(4)?,
+                is_favorite: row.get::<_, i32>(5)? != 0,
+                group_id: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    match rows.next() {
+        Some(Ok(summary)) => Ok(Some(summary)),
+        Some(Err(e)) => Err(VaultError::DatabaseError(e.to_string())),
+        None => Ok(None),
+    }
+}
+
 pub fn get_items_by_group(conn: &Connection, group_id: &str) -> Result<Vec<ItemSummary>> {
     let mut stmt = conn
         .prepare(
@@ -2231,6 +2280,206 @@ pub fn item_title(conn: &Connection, id: &str) -> Option<String> {
         .ok()
 }
 
+
+// ---------- custom fields & tags ----------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomField {
+    pub id: String,
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Tag {
+    pub id: String,
+    pub name: String,
+    pub color: Option<String>,
+    pub created_at: i64,
+}
+
+pub fn list_custom_fields(conn: &Connection, item_id: &str, key: &[u8; 32]) -> Result<Vec<CustomField>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, field_key, value_encrypted, value_nonce
+             FROM custom_fields WHERE item_id = ?1 ORDER BY sort_order, field_key",
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    let rows = stmt
+        .query_map([item_id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Vec<u8>>(2)?,
+                row.get::<_, Vec<u8>>(3)?,
+            ))
+        })
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        let (id, field_key, ciphertext, nonce) = row.map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        let nonce_bytes: [u8; 12] = nonce
+            .as_slice()
+            .try_into()
+            .map_err(|_| VaultError::CryptoError("Invalid custom field nonce".to_string()))?;
+        let plain = crate::crypto::decrypt(key, &nonce_bytes, &ciphertext)?;
+        let value = String::from_utf8(plain)
+            .map_err(|_| VaultError::CryptoError("Invalid UTF-8 in custom field".to_string()))?;
+        out.push(CustomField { id, key: field_key, value });
+    }
+    Ok(out)
+}
+
+/// Replace all custom fields for an item. Empty keys are rejected; an empty
+/// value is allowed (a blank note-style field).
+pub fn save_custom_fields(
+    conn: &Connection,
+    item_id: &str,
+    fields: &[(String, String)],
+    key: &[u8; 32],
+) -> Result<()> {
+    let exists: i64 = conn
+        .query_row("SELECT COUNT(*) FROM items WHERE id = ?1", [item_id], |row| row.get(0))
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    if exists == 0 {
+        return Err(VaultError::ItemNotFound);
+    }
+
+    conn.execute("DELETE FROM custom_fields WHERE item_id = ?1", [item_id])
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+
+    for (index, (field_key, value)) in fields.iter().enumerate() {
+        let trimmed = field_key.trim();
+        if trimmed.is_empty() {
+            return Err(VaultError::Validation("Custom field key must not be empty".to_string()));
+        }
+        let encrypted = crate::crypto::encrypt(key, value.as_bytes())
+            .map_err(|e| VaultError::CryptoError(e.to_string()))?;
+        conn.execute(
+            "INSERT INTO custom_fields (id, item_id, field_key, value_encrypted, value_nonce, sort_order)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                Uuid::new_v4().to_string(),
+                item_id,
+                trimmed,
+                encrypted.ciphertext,
+                encrypted.nonce.to_vec(),
+                index as i64
+            ],
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    }
+    log_event(conn, "item.update", Some(item_id), item_title(conn, item_id).as_deref(), Some("custom_fields"));
+    Ok(())
+}
+
+pub fn get_all_tags(conn: &Connection) -> Result<Vec<Tag>> {
+    let mut stmt = conn
+        .prepare("SELECT id, name, color, created_at FROM tags ORDER BY name")
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(Tag { id: row.get(0)?, name: row.get(1)?, color: row.get(2)?, created_at: row.get(3)? })
+        })
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    rows.collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))
+}
+
+pub fn create_tag(conn: &Connection, name: &str, color: Option<&str>) -> Result<Tag> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(VaultError::Validation("Tag name must not be empty".to_string()));
+    }
+    let existing: Option<String> = conn
+        .query_row("SELECT id FROM tags WHERE name = ?1", [name], |row| row.get(0))
+        .ok();
+    if let Some(id) = existing {
+        // Idempotent: return the existing tag instead of failing.
+        return conn
+            .query_row("SELECT id, name, color, created_at FROM tags WHERE id = ?1", [id], |row| {
+                Ok(Tag { id: row.get(0)?, name: row.get(1)?, color: row.get(2)?, created_at: row.get(3)? })
+            })
+            .map_err(|e| VaultError::DatabaseError(e.to_string()));
+    }
+
+    let tag = Tag {
+        id: Uuid::new_v4().to_string(),
+        name: name.to_string(),
+        color: color.map(|c| c.to_string()),
+        created_at: chrono_timestamp(),
+    };
+    conn.execute(
+        "INSERT INTO tags (id, name, color, created_at) VALUES (?1, ?2, ?3, ?4)",
+        params![tag.id, tag.name, tag.color, tag.created_at],
+    )
+    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    log_event(conn, "tag.create", None, Some(name), None);
+    Ok(tag)
+}
+
+pub fn delete_tag(conn: &Connection, id: &str) -> Result<()> {
+    let name = conn
+        .query_row("SELECT name FROM tags WHERE id = ?1", [id], |row| row.get::<_, String>(0))
+        .ok();
+    let affected = conn
+        .execute("DELETE FROM tags WHERE id = ?1", [id])
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    if affected == 0 {
+        return Err(VaultError::ItemNotFound);
+    }
+    log_event(conn, "tag.delete", None, name.as_deref(), None);
+    Ok(())
+}
+
+pub fn get_item_tag_ids(conn: &Connection, item_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn
+        .prepare("SELECT tag_id FROM item_tags WHERE item_id = ?1")
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    let rows = stmt
+        .query_map([item_id], |row| row.get::<_, String>(0))
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    rows.collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))
+}
+
+pub fn set_item_tags(conn: &Connection, item_id: &str, tag_ids: &[String]) -> Result<()> {
+    conn.execute("DELETE FROM item_tags WHERE item_id = ?1", [item_id])
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    for tag_id in tag_ids {
+        conn.execute(
+            "INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?1, ?2)",
+            params![item_id, tag_id],
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    }
+    Ok(())
+}
+
+pub fn get_items_by_tag(conn: &Connection, tag_id: &str) -> Result<Vec<ItemSummary>> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT i.id FROM items i
+             JOIN item_tags it ON it.item_id = i.id
+             WHERE it.tag_id = ?1
+             ORDER BY i.title",
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    let ids: Vec<String> = stmt
+        .query_map([tag_id], |row| row.get(0))
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?
+        .filter_map(|r| r.ok())
+        .collect();
+    let mut out = Vec::new();
+    for id in ids {
+        if let Some(summary) = get_item_summary(conn, &id)? {
+            out.push(summary);
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2583,6 +2832,69 @@ mod tests {
         let detail = get_account_item_detail(&conn, &id, &key).unwrap();
         assert_eq!(detail.password, "new-pass");
         assert_eq!(detail.totp_secret.as_deref(), Some("JBSWY3DPEHPK3PXP"));
+    }
+
+    #[test]
+    fn custom_fields_are_encrypted_and_replaced() {
+        let conn = seeded_conn();
+        let key = derive_key("cf-password", None).unwrap().key;
+        let id = create_account_item(&conn, "built-in-accounts", "Host", "u", "p", None, None, None, &key).unwrap();
+
+        save_custom_fields(&conn, &id, &[("region".to_string(), "cn-north-1".to_string())], &key).unwrap();
+        let fields = list_custom_fields(&conn, &id, &key).unwrap();
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].key, "region");
+        assert_eq!(fields[0].value, "cn-north-1");
+
+        // Stored as ciphertext, not plaintext.
+        let stored: Vec<u8> = conn
+            .query_row("SELECT value_encrypted FROM custom_fields WHERE item_id = ?1", [&id], |r| r.get(0))
+            .unwrap();
+        assert!(!stored.windows(11).any(|w| w == b"cn-north-1"));
+
+        // Full replacement.
+        save_custom_fields(
+            &conn,
+            &id,
+            &[("a".to_string(), "1".to_string()), ("b".to_string(), "2".to_string())],
+            &key,
+        )
+        .unwrap();
+        assert_eq!(list_custom_fields(&conn, &id, &key).unwrap().len(), 2);
+
+        // Empty keys are rejected.
+        assert!(save_custom_fields(&conn, &id, &[(" ".to_string(), "x".to_string())], &key).is_err());
+
+        // Cascade with the item.
+        delete_item(&conn, &id).unwrap();
+        let remaining: i64 = conn
+            .query_row("SELECT COUNT(*) FROM custom_fields WHERE item_id = ?1", [&id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(remaining, 0);
+    }
+
+    #[test]
+    fn tags_attach_across_groups_and_cascade() {
+        let conn = seeded_conn();
+        let key = derive_key("tag-password", None).unwrap().key;
+        let account = create_account_item(&conn, "built-in-accounts", "A", "u", "p", None, None, None, &key).unwrap();
+        let database = create_database_item(
+            &conn, "built-in-databases", "D", "postgres", "db.local", None, None, None, None, None, None, &key,
+        )
+        .unwrap();
+
+        let tag = create_tag(&conn, "prod", None).unwrap();
+        let again = create_tag(&conn, "prod", None).unwrap();
+        assert_eq!(tag.id, again.id, "creating an existing tag is idempotent");
+
+        set_item_tags(&conn, &account, &[tag.id.clone()]).unwrap();
+        set_item_tags(&conn, &database, &[tag.id.clone()]).unwrap();
+        assert_eq!(get_item_tag_ids(&conn, &account).unwrap(), vec![tag.id.clone()]);
+        assert_eq!(get_items_by_tag(&conn, &tag.id).unwrap().len(), 2);
+
+        delete_tag(&conn, &tag.id).unwrap();
+        assert!(get_items_by_tag(&conn, &tag.id).unwrap().is_empty());
+        assert!(get_item_tag_ids(&conn, &account).unwrap().is_empty());
     }
 
     #[test]

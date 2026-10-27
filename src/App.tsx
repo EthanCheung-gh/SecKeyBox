@@ -14,16 +14,19 @@ import { AddEditItemModal } from '@/components/modals/AddEditItemModal';
 import { AddGroupModal } from '@/components/modals/AddGroupModal';
 import { EditGroupModal } from '@/components/modals/EditGroupModal';
 import { DeleteConfirmModal } from '@/components/modals/DeleteConfirmModal';
+import { AddTagModal } from '@/components/modals/AddTagModal';
 
 function MainApp() {
   useActivityTracker();
   const loadItems = useVaultStore((s) => s.loadItems);
+  const loadTags = useVaultStore((s) => s.loadTags);
   const isSecurityPanelOpen = useUIStore((s) => s.isSecurityPanelOpen);
   const closeSecurityPanel = useUIStore((s) => s.closeSecurityPanel);
 
   useEffect(() => {
     loadItems();
-  }, [loadItems]);
+    void loadTags();
+  }, [loadItems, loadTags]);
 
   return (
     <div className="flex h-screen">
@@ -40,6 +43,7 @@ function MainApp() {
       <AddGroupModal />
       <EditGroupModal />
       <DeleteConfirmModal />
+      <AddTagModal />
     </div>
   );
 }

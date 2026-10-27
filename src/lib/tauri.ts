@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -275,4 +275,41 @@ export async function deleteAttachment(itemId: string, attachmentId: string): Pr
 
 export async function getActivityLog(limit = 200): Promise<AuditEntry[]> {
   return invoke<AuditEntry[]>('get_activity_log', { limit });
+}
+
+// --- Custom fields & tags ---
+
+export async function listCustomFields(itemId: string): Promise<CustomField[]> {
+  return invoke<CustomField[]>('list_custom_fields_cmd', { itemId });
+}
+
+export async function saveCustomFields(
+  itemId: string,
+  fields: { key: string; value: string }[]
+): Promise<void> {
+  return invoke<void>('save_custom_fields_cmd', { itemId, fields });
+}
+
+export async function getTags(): Promise<Tag[]> {
+  return invoke<Tag[]>('get_tags');
+}
+
+export async function createTag(name: string, color?: string): Promise<Tag> {
+  return invoke<Tag>('create_new_tag', { name, color });
+}
+
+export async function deleteTag(id: string): Promise<void> {
+  return invoke<void>('delete_existing_tag', { id });
+}
+
+export async function getItemTags(itemId: string): Promise<string[]> {
+  return invoke<string[]>('get_item_tags', { itemId });
+}
+
+export async function setItemTags(itemId: string, tagIds: string[]): Promise<void> {
+  return invoke<void>('set_item_tags_cmd', { itemId, tagIds });
+}
+
+export async function getItemsByTag(tagId: string): Promise<ItemSummary[]> {
+  return invoke<ItemSummary[]>('get_items_by_tag_cmd', { tagId });
 }

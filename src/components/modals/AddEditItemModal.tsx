@@ -9,6 +9,7 @@ import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 import type { EnvVarPair } from '@/types';
 import { useI18n, groupDisplayName } from '@/i18n';
+import { listCustomFields, saveCustomFields, getItemTags, setItemTags } from '@/lib/tauri';
 
 // 统一表单模型：所有类型的字段放在一个 state 里，未用到的字段保持空串。
 // 密文类字段（password/keyValue/secret/licenseKey/passphrase）在编辑模式下
@@ -110,11 +111,42 @@ export function AddEditItemModal() {
 
   const [form, setForm] = useState<ItemForm>(emptyForm);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const tags = useVaultStore((s) => s.tags);
   const set = (patch: Partial<ItemForm>) => setForm({ ...form, ...patch });
 
   const isEditing = editingItemId !== null;
   const editingType = selectedItem?.type || 'account';
   const currentType = isEditing ? editingType : newItemType;
+
+  useEffect(() => {
+    if (!isEditing || !editingItemId) {
+      setCustomFields([]);
+      setSelectedTagIds([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [fields, tagIds] = await Promise.all([
+          listCustomFields(editingItemId),
+          getItemTags(editingItemId),
+        ]);
+        if (cancelled) return;
+        setCustomFields(fields.map((field) => ({ key: field.key, value: field.value })));
+        setSelectedTagIds(tagIds);
+      } catch {
+        if (!cancelled) {
+          setCustomFields([]);
+          setSelectedTagIds([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditing, editingItemId]);
 
   useEffect(() => {
     if (isEditing && selectedItem) {
@@ -243,6 +275,8 @@ export function AddEditItemModal() {
     const opt = (v: string) => (v === '' ? undefined : v);
     const secret = (v: string) => (v === '' ? undefined : v); // 空 = 保持原值
     const num = (v: string) => (v === '' ? undefined : Number(v));
+    // Id of the item after save (existing id when editing, new id on create).
+    let savedId: string | undefined = isEditing ? id ?? undefined : undefined;
 
     try {
       switch (currentType) {
@@ -258,7 +292,7 @@ export function AddEditItemModal() {
             totpSecret: form.totpSecret,
           });
         } else {
-          await vault.createItem({
+          savedId = await vault.createItem({
             groupId: form.groupId,
             title: form.title,
             username: form.username,
@@ -280,7 +314,7 @@ export function AddEditItemModal() {
             notes: opt(form.notes),
           });
         } else {
-          await vault.createApiKeyItem({
+          savedId = await vault.createApiKeyItem({
             groupId: form.groupId,
             title: form.title,
             keyName: form.keyName,
@@ -300,7 +334,7 @@ export function AddEditItemModal() {
             notes: opt(form.notes),
           });
         } else {
-          await vault.createEnvVarItem({
+          savedId = await vault.createEnvVarItem({
             groupId: form.groupId,
             title: form.title,
             variables: validVars,
@@ -323,7 +357,7 @@ export function AddEditItemModal() {
             notes: opt(form.notes),
           });
         } else {
-          await vault.createDatabaseItem({
+          savedId = await vault.createDatabaseItem({
             groupId: form.groupId,
             title: form.title,
             dbType: form.dbType,
@@ -350,7 +384,7 @@ export function AddEditItemModal() {
             notes: opt(form.notes),
           });
         } else {
-          await vault.createSshItem({
+          savedId = await vault.createSshItem({
             groupId: form.groupId,
             title: form.title,
             host: form.host,
@@ -374,7 +408,7 @@ export function AddEditItemModal() {
             notes: opt(form.notes),
           });
         } else {
-          await vault.createCloudItem({
+          savedId = await vault.createCloudItem({
             groupId: form.groupId,
             title: form.title,
             provider: form.provider,
@@ -399,7 +433,7 @@ export function AddEditItemModal() {
             notes: opt(form.notes),
           });
         } else {
-          await vault.createLicenseItem({
+          savedId = await vault.createLicenseItem({
             groupId: form.groupId,
             title: form.title,
             softwareName: form.softwareName,
@@ -424,7 +458,7 @@ export function AddEditItemModal() {
             notes: opt(form.notes),
           });
         } else {
-          await vault.createSmtpItem({
+          savedId = await vault.createSmtpItem({
             groupId: form.groupId,
             title: form.title,
             host: form.host,
@@ -438,6 +472,15 @@ export function AddEditItemModal() {
         }
         break;
     }
+      if (savedId) {
+        await saveCustomFields(
+          savedId,
+          customFields
+            .map((field) => ({ key: field.key.trim(), value: field.value }))
+            .filter((field) => field.key !== '')
+        );
+        await setItemTags(savedId, selectedTagIds);
+      }
     } catch (err) {
       // store 已写入全局 error；这里在弹窗内直接展示，且不关闭弹窗，
       // 避免出现“提交失败却看起来成功”的无感知体验。
@@ -806,6 +849,75 @@ export function AddEditItemModal() {
         <Field label={t('form.notes')}>
           <textarea value={form.notes} onChange={(e) => set({ notes: e.target.value })} className={textAreaClass} rows={3} />
         </Field>
+        {tags.length > 0 && (
+          <Field label={t('tags.title')}>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {tags.map((tag) => (
+                <label key={tag.id} className="flex items-center gap-1 text-sm dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={selectedTagIds.includes(tag.id)}
+                    onChange={(e) =>
+                      setSelectedTagIds((prev) =>
+                        e.target.checked
+                          ? [...prev, tag.id]
+                          : prev.filter((tagId) => tagId !== tag.id)
+                      )
+                    }
+                  />
+                  {tag.name}
+                </label>
+              ))}
+            </div>
+          </Field>
+        )}
+
+        <Field label={t('customFields.title')}>
+          <div className="space-y-2">
+            {customFields.map((field, index) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  value={field.key}
+                  onChange={(e) =>
+                    setCustomFields((prev) =>
+                      prev.map((item, i) => (i === index ? { ...item, key: e.target.value } : item))
+                    )
+                  }
+                  placeholder={t('customFields.key')}
+                  className="w-40"
+                />
+                <Input
+                  value={field.value}
+                  onChange={(e) =>
+                    setCustomFields((prev) =>
+                      prev.map((item, i) => (i === index ? { ...item, value: e.target.value } : item))
+                    )
+                  }
+                  placeholder={t('customFields.value')}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCustomFields((prev) => prev.filter((_, i) => i !== index))}
+                  title={t('customFields.remove')}
+                >
+                  ×
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCustomFields((prev) => [...prev, { key: '', value: '' }])}
+            >
+              + {t('customFields.add')}
+            </Button>
+          </div>
+        </Field>
+
         {/* Sticky action bar: on short windows the form scrolls but Save must
             stay reachable without scrolling to the very bottom. */}
         <div className="sticky bottom-0 -mx-6 mt-2 flex justify-end gap-2 border-t border-gray-200 bg-white px-6 pb-1 pt-4 dark:border-gray-700 dark:bg-gray-800">

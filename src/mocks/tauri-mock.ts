@@ -85,6 +85,11 @@ type MockState = {
   autoLockMinutes: number;
   /** 加密附件的内存镜像（浏览器调试用，data_base64 不加密） */
   attachments: MockAttachment[];
+  /** 自定义字段：itemId -> 键值对（mock 明文） */
+  customFields: Map<string, { key: string; value: string }[]>;
+  /** 标签与条目关联 */
+  tags: { id: string; name: string; color?: string | null; created_at: number }[];
+  itemTags: Map<string, string[]>;
 };
 
 type MockAttachment = {
@@ -107,6 +112,9 @@ const state: MockState = {
   masterPassword: null,
   autoLockMinutes: 5,
   attachments: [],
+  customFields: new Map(),
+  tags: [],
+  itemTags: new Map(),
 };
 
 // ---------- utils ----------
@@ -1481,6 +1489,91 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
       (x) => !(x.id === attachmentId && x.item_id === itemId),
     );
     return null;
+  },
+
+  // --- custom fields & tags（浏览器调试） ---
+
+  list_custom_fields_cmd: (a) => {
+    if (!state.unlocked) return [];
+    const itemId = str(a, 'itemId');
+    return (state.customFields.get(itemId) ?? []).map((field, index) => ({
+      id: `${itemId}-cf-${index}`,
+      key: field.key,
+      value: field.value,
+    }));
+  },
+
+  save_custom_fields_cmd: (a) => {
+    requireUnlocked();
+    const itemId = str(a, 'itemId');
+    if (!findItem(itemId)) throw new Error('ItemNotFound');
+    const fields = Array.isArray(a.fields) ? (a.fields as { key: string; value: string }[]) : [];
+    for (const field of fields) {
+      if (!field.key || field.key.trim() === '') {
+        throw new Error('Custom field key must not be empty');
+      }
+    }
+    state.customFields.set(
+      itemId,
+      fields.map((field) => ({ key: field.key.trim(), value: field.value })),
+    );
+    return null;
+  },
+
+  get_tags: () => {
+    if (!state.unlocked) return [];
+    return state.tags.map((tag) => ({ ...tag }));
+  },
+
+  create_new_tag: (a) => {
+    requireUnlocked();
+    const name = (str(a, 'name') ?? '').trim();
+    if (!name) throw new Error('Tag name must not be empty');
+    const existing = state.tags.find((tag) => tag.name === name);
+    if (existing) return { ...existing };
+    const tag = {
+      id: `tag-${++seq}`,
+      name,
+      color: optStr(a, 'color') ?? null,
+      created_at: now(),
+    };
+    state.tags.push(tag);
+    return { ...tag };
+  },
+
+  delete_existing_tag: (a) => {
+    requireUnlocked();
+    const id = str(a, 'id');
+    state.tags = state.tags.filter((tag) => tag.id !== id);
+    for (const [itemId, tagIds] of state.itemTags.entries()) {
+      state.itemTags.set(itemId, tagIds.filter((tagId) => tagId !== id));
+    }
+    return null;
+  },
+
+  get_item_tags: (a) => {
+    if (!state.unlocked) return [];
+    return [...(state.itemTags.get(str(a, 'itemId')) ?? [])];
+  },
+
+  set_item_tags_cmd: (a) => {
+    requireUnlocked();
+    const itemId = str(a, 'itemId');
+    if (!findItem(itemId)) throw new Error('ItemNotFound');
+    const tagIds = Array.isArray(a.tagIds) ? (a.tagIds as string[]) : [];
+    state.itemTags.set(itemId, [...tagIds]);
+    return null;
+  },
+
+  get_items_by_tag_cmd: (a) => {
+    if (!state.unlocked) return [];
+    const tagId = str(a, 'tagId');
+    const ids = new Set(
+      [...state.itemTags.entries()]
+        .filter(([, tagIds]) => tagIds.includes(tagId))
+        .map(([itemId]) => itemId),
+    );
+    return state.items.filter((item) => ids.has(item.id)).map(toSummary);
   },
 
   search_items: (a) => {

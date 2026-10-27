@@ -293,6 +293,21 @@ export interface AttachmentMeta {
   created_at: number;
 }
 
+/** Per-item extra field (value encrypted at rest). */
+export interface CustomField {
+  id: string;
+  key: string;
+  value: string;
+}
+
+/** Cross-group label. */
+export interface Tag {
+  id: string;
+  name: string;
+  color?: string | null;
+  created_at: number;
+}
+
 /** One activity-log record (never contains secret values). */
 export interface AuditEntry {
   id: number;
