@@ -3,7 +3,7 @@ use tauri::State;
 use crate::crypto::{derive_key, verify_password, SecureKey};
 use crate::db::{
     get_db_path, get_password_hash, get_password_salt, init_schema, insert_builtin_groups,
-    open_connection, reencrypt_all, run_migrations, set_password_hash, DbConnection,
+    log_event, open_connection, reencrypt_all, run_migrations, set_password_hash, DbConnection,
 };
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;
@@ -162,13 +162,17 @@ pub fn unlock_vault(
     let derived = derive_key(&master_password, Some(&stored_salt))?;
     let secure_key = SecureKey::new(derived.key);
     vault_state.unlock(secure_key);
+    log_event(&conn, "vault.unlock", None, None, None);
 
     eprintln!("[DEBUG] unlock_vault: success");
     Ok(true)
 }
 
 #[tauri::command]
-pub fn lock_vault(vault_state: State<VaultState>) -> Result<()> {
+pub fn lock_vault(db: State<DbConnection>, vault_state: State<VaultState>) -> Result<()> {
+    if let Ok(conn) = db.inner().0.lock() {
+        log_event(&conn, "vault.lock", None, None, None);
+    }
     vault_state.lock();
     Ok(())
 }
@@ -219,6 +223,7 @@ pub fn change_master_password(
 
     reencrypt_all(&conn, old_key.as_bytes(), &derived.key)?;
     set_password_hash(&conn, &derived.hash, &derived.salt)?;
+    log_event(&conn, "vault.password_changed", None, None, None);
 
     vault_state.unlock(SecureKey::new(derived.key));
     Ok(())

@@ -61,7 +61,11 @@ export function PaletteWindow() {
                       ? detail.license_key
                       : detail.password;
       if (value) {
-        await copySecret(value);
+        await copySecret(value, {
+          itemId: item.id,
+          itemTitle: item.title,
+          field: detail.type,
+        });
         setStatus(t('palette.copied', { title: item.title }));
       } else {
         setStatus(t('palette.noSecret', { title: item.title }));

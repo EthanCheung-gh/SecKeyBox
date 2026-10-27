@@ -4,8 +4,8 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::db::{
-    add_attachment, delete_attachment, get_attachment_data, list_attachments, AttachmentMeta,
-    DbConnection,
+    add_attachment, delete_attachment, get_attachment_data, list_attachments, log_event,
+    item_title, AttachmentMeta, DbConnection,
 };
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;
@@ -42,14 +42,22 @@ pub fn add_attachment_cmd(
         .lock()
         .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
-    add_attachment(
+    let meta = add_attachment(
         &conn,
         &item_id,
         &filename,
         content_type.as_deref(),
         &data,
         key.as_bytes(),
-    )
+    )?;
+    log_event(
+        &conn,
+        "attachment.add",
+        Some(&item_id),
+        item_title(&conn, &item_id).as_deref(),
+        Some(&filename),
+    );
+    Ok(meta)
 }
 
 #[tauri::command]
@@ -135,5 +143,13 @@ pub fn delete_attachment_cmd(
         .0
         .lock()
         .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
-    delete_attachment(&conn, &item_id, &attachment_id)
+    delete_attachment(&conn, &item_id, &attachment_id)?;
+    log_event(
+        &conn,
+        "attachment.delete",
+        Some(&item_id),
+        item_title(&conn, &item_id).as_deref(),
+        None,
+    );
+    Ok(())
 }

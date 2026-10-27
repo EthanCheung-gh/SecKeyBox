@@ -314,6 +314,29 @@ export const en: Record<string, string> = {
 
   'palette.footer': '↑↓ select · Enter copy secret · Esc close',
 
+  'audit.tabSecurity': 'Security check',
+  'audit.tabActivity': 'Activity log',
+  'audit.hint': 'Local history of unlocks, copies and changes. Secret values are never recorded.',
+  'audit.empty': 'No activity recorded yet.',
+  'audit.colTime': 'Time',
+  'audit.colEvent': 'Event',
+  'audit.colItem': 'Item',
+  'audit.colDetail': 'Detail',
+  'audit.event.vault.unlock': 'Vault unlocked',
+  'audit.event.vault.lock': 'Vault locked',
+  'audit.event.vault.lock_timeout': 'Locked (idle timeout)',
+  'audit.event.vault.password_changed': 'Master password changed',
+  'audit.event.vault.export': 'Vault exported',
+  'audit.event.vault.import': 'Vault imported',
+  'audit.event.vault.import_csv': 'CSV imported',
+  'audit.event.vault.import_env': '.env imported',
+  'audit.event.item.create': 'Item created',
+  'audit.event.item.update': 'Item updated',
+  'audit.event.item.delete': 'Item deleted',
+  'audit.event.item.copy': 'Secret copied',
+  'audit.event.attachment.add': 'Attachment added',
+  'audit.event.attachment.delete': 'Attachment deleted',
+
   // generic errors
   'error.unknown': 'Something went wrong',
 };

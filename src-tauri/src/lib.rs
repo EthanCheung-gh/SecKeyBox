@@ -94,6 +94,21 @@ pub fn run() {
                     state.lock();
                     drop(state);
 
+                    // Record why the vault locked (idle timeout) for the
+                    // activity log; ignore failures so the watchdog survives.
+                    {
+                        let db = watchdog_app.state::<DbConnection>();
+                        if let Ok(conn) = db.inner().0.lock() {
+                            crate::db::log_event(
+                                &conn,
+                                "vault.lock_timeout",
+                                None,
+                                None,
+                                Some(&format!("{} min idle", minutes)),
+                            );
+                        }
+                    }
+
                     let clipboard_app = watchdog_app.clone();
                     let _ = watchdog_app.run_on_main_thread(move || {
                         use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -152,6 +167,7 @@ pub fn run() {
             import_vault,
             record_activity,
             get_security_settings,
+            get_activity_log,
             set_auto_lock_minutes,
             add_attachment_cmd,
             list_attachments_cmd,

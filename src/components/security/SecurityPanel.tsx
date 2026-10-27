@@ -5,6 +5,7 @@ import { runSecurityAudit } from '@/lib/tauri';
 import { useVaultStore } from '@/stores/vault';
 import type { SecurityAudit as Audit } from '@/types';
 import { useI18n } from '@/i18n';
+import { ActivityLog } from './ActivityLog';
 
 const Section = ({
   title,
@@ -47,6 +48,7 @@ const Section = ({
 
 export function SecurityPanel({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
+  const [tab, setTab] = useState<'security' | 'activity'>('security');
   const [audit, setAudit] = useState<Audit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,6 +103,33 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
+      <div className="mb-4 flex gap-2 text-sm">
+        <button
+          onClick={() => setTab('security')}
+          className={`rounded-md border px-3 py-1 ${
+            tab === 'security'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'
+          }`}
+        >
+          {t('audit.tabSecurity')}
+        </button>
+        <button
+          onClick={() => setTab('activity')}
+          className={`rounded-md border px-3 py-1 ${
+            tab === 'activity'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'
+          }`}
+        >
+          {t('audit.tabActivity')}
+        </button>
+      </div>
+
+      {tab === 'activity' ? (
+        <ActivityLog />
+      ) : (
+        <>
       {loading && <p className="text-sm text-gray-500">{t('security.analyzing')}</p>}
       {error && <p className="text-sm text-red-500">{error}</p>}
 
@@ -136,6 +165,8 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );

@@ -314,6 +314,29 @@ export const zh: Record<string, string> = {
 
   'palette.footer': '↑↓ 选择 · Enter 复制主密钥 · Esc 关闭',
 
+  'audit.tabSecurity': '安全体检',
+  'audit.tabActivity': '活动日志',
+  'audit.hint': '本地操作历史：解锁、复制、修改等。绝不会记录密钥内容。',
+  'audit.empty': '暂无操作记录。',
+  'audit.colTime': '时间',
+  'audit.colEvent': '事件',
+  'audit.colItem': '条目',
+  'audit.colDetail': '详情',
+  'audit.event.vault.unlock': '解锁保险库',
+  'audit.event.vault.lock': '锁定保险库',
+  'audit.event.vault.lock_timeout': '自动锁定（空闲超时）',
+  'audit.event.vault.password_changed': '修改主密码',
+  'audit.event.vault.export': '导出保险库',
+  'audit.event.vault.import': '导入保险库',
+  'audit.event.vault.import_csv': '导入 CSV',
+  'audit.event.vault.import_env': '导入 .env',
+  'audit.event.item.create': '新建条目',
+  'audit.event.item.update': '修改条目',
+  'audit.event.item.delete': '删除条目',
+  'audit.event.item.copy': '复制密钥',
+  'audit.event.attachment.add': '添加附件',
+  'audit.event.attachment.delete': '删除附件',
+
   // generic errors
   'error.unknown': '出错了',
 };

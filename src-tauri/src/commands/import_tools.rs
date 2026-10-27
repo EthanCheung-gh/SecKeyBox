@@ -7,7 +7,7 @@
 
 use tauri::State;
 
-use crate::db::{
+use crate::db::{log_event, 
     create_account_item, create_env_var_item, get_all_groups, DbConnection,
 };
 use crate::error::{Result, VaultError};
@@ -141,7 +141,15 @@ pub fn import_csv(
         .0
         .lock()
         .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
-    import_csv_rows(&conn, key.as_bytes(), &data, &group_id)
+    let result = import_csv_rows(&conn, key.as_bytes(), &data, &group_id)?;
+    log_event(
+        &conn,
+        "vault.import_csv",
+        None,
+        None,
+        Some(&format!("{} items imported", result.items_imported)),
+    );
+    Ok(result)
 }
 
 /// Import KEY=VALUE pairs as one env-var item.
@@ -205,7 +213,15 @@ pub fn import_env(
         .0
         .lock()
         .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
-    import_env_rows(&conn, key.as_bytes(), &group_id, &title, &content)
+    let result = import_env_rows(&conn, key.as_bytes(), &group_id, &title, &content)?;
+    log_event(
+        &conn,
+        "vault.import_env",
+        None,
+        Some(&title),
+        Some(&format!("{} variables", result.items_imported)),
+    );
+    Ok(result)
 }
 
 #[cfg(test)]

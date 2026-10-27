@@ -834,6 +834,7 @@ pub fn create_api_key_item(
         params![id, key_name, encrypted.ciphertext.to_vec(), encrypted.nonce.to_vec(), endpoint, auth_method, notes, now],
     ).map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    log_event(tx, "item.create", Some(&id), Some(title), Some("api_key"));
     Ok(id)
     })
 }
@@ -875,6 +876,7 @@ pub fn update_api_key_item(
         ).map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     }
 
+    log_event(conn, "item.update", Some(id), Some(title), Some("api_key"));
     Ok(())
 }
 
@@ -928,6 +930,7 @@ pub fn create_account_item(
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    log_event(tx, "item.create", Some(&id), Some(title), Some("account"));
     Ok(id)
     })
 }
@@ -993,12 +996,15 @@ pub fn update_account_item(
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     }
 
+    log_event(conn, "item.update", Some(id), Some(title), Some("account"));
     Ok(())
 }
 
 pub fn delete_item(conn: &Connection, id: &str) -> Result<()> {
+    let title = item_title(conn, id);
     conn.execute("DELETE FROM items WHERE id = ?1", [id])
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    log_event(conn, "item.delete", Some(id), title.as_deref(), None);
     Ok(())
 }
 
@@ -1121,6 +1127,7 @@ pub fn create_env_var_item(
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     }
 
+    log_event(tx, "item.create", Some(&id), Some(title), Some("env_var"));
     Ok(id)
     })
 }
@@ -1309,6 +1316,7 @@ pub fn create_database_item(
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    log_event(tx, "item.create", Some(&id), Some(title), Some("database"));
     Ok(id)
     })
 }
@@ -1354,6 +1362,7 @@ pub fn update_database_item(
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     }
 
+    log_event(conn, "item.update", Some(id), Some(title), Some("database"));
     Ok(())
 }
 
@@ -1474,6 +1483,7 @@ pub fn create_ssh_item(
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    log_event(tx, "item.create", Some(&id), Some(title), Some("ssh"));
     Ok(id)
     })
 }
@@ -1549,6 +1559,7 @@ pub fn update_ssh_item(
     }
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    log_event(conn, "item.update", Some(id), Some(title), Some("ssh"));
     Ok(())
 }
 
@@ -1643,6 +1654,7 @@ pub fn create_cloud_item(
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    log_event(tx, "item.create", Some(&id), Some(title), Some("cloud"));
     Ok(id)
     })
 }
@@ -1685,6 +1697,7 @@ pub fn update_cloud_item(
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     }
 
+    log_event(conn, "item.update", Some(id), Some(title), Some("cloud"));
     Ok(())
 }
 
@@ -1773,6 +1786,7 @@ pub fn create_license_item(
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    log_event(tx, "item.create", Some(&id), Some(title), Some("license"));
     Ok(id)
     })
 }
@@ -1815,6 +1829,7 @@ pub fn update_license_item(
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     }
 
+    log_event(conn, "item.update", Some(id), Some(title), Some("license"));
     Ok(())
 }
 
@@ -1905,6 +1920,7 @@ pub fn create_smtp_item(
     )
     .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
+    log_event(tx, "item.create", Some(&id), Some(title), Some("smtp"));
     Ok(id)
     })
 }
@@ -1949,6 +1965,7 @@ pub fn update_smtp_item(
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     }
 
+    log_event(conn, "item.update", Some(id), Some(title), Some("smtp"));
     Ok(())
 }
 
@@ -2145,6 +2162,73 @@ pub fn delete_attachment(conn: &Connection, item_id: &str, attachment_id: &str) 
         return Err(VaultError::ItemNotFound);
     }
     Ok(())
+}
+
+
+// ---------- audit log ----------
+
+/// Number of activity entries kept; older rows are pruned on insert.
+const AUDIT_LOG_LIMIT: i64 = 2000;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEntry {
+    pub id: i64,
+    pub event: String,
+    pub item_id: Option<String>,
+    pub item_title: Option<String>,
+    pub detail: Option<String>,
+    pub created_at: i64,
+}
+
+/// Append one activity entry. Never store secret values here: `detail` is a
+/// short, non-sensitive descriptor (field name, import source, ...).
+pub fn log_event(
+    conn: &Connection,
+    event: &str,
+    item_id: Option<&str>,
+    item_title: Option<&str>,
+    detail: Option<&str>,
+) {
+    let _ = conn.execute(
+        "INSERT INTO audit_log (event, item_id, item_title, detail, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![event, item_id, item_title, detail, chrono_timestamp()],
+    );
+    let _ = conn.execute(
+        "DELETE FROM audit_log WHERE id NOT IN (SELECT id FROM audit_log ORDER BY id DESC LIMIT ?1)",
+        [AUDIT_LOG_LIMIT],
+    );
+}
+
+/// Most recent entries first.
+pub fn list_audit_log(conn: &Connection, limit: i64) -> Result<Vec<AuditEntry>> {
+    let limit = limit.clamp(1, AUDIT_LOG_LIMIT);
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, event, item_id, item_title, detail, created_at
+             FROM audit_log ORDER BY id DESC LIMIT ?1",
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    let rows = stmt
+        .query_map([limit], |row| {
+            Ok(AuditEntry {
+                id: row.get(0)?,
+                event: row.get(1)?,
+                item_id: row.get(2)?,
+                item_title: row.get(3)?,
+                detail: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    rows.collect::<std::result::Result<Vec<_>, _>>()
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))
+}
+
+/// Look up an item title (for activity entries written after a delete).
+pub fn item_title(conn: &Connection, id: &str) -> Option<String> {
+    conn.query_row("SELECT title FROM items WHERE id = ?1", [id], |row| row.get(0))
+        .ok()
 }
 
 #[cfg(test)]
@@ -2499,6 +2583,30 @@ mod tests {
         let detail = get_account_item_detail(&conn, &id, &key).unwrap();
         assert_eq!(detail.password, "new-pass");
         assert_eq!(detail.totp_secret.as_deref(), Some("JBSWY3DPEHPK3PXP"));
+    }
+
+    #[test]
+    fn audit_log_records_events_newest_first() {
+        let conn = seeded_conn();
+        log_event(&conn, "vault.unlock", None, None, None);
+        log_event(&conn, "item.copy", Some("id-1"), Some("GitHub"), Some("password"));
+
+        let entries = list_audit_log(&conn, 10).unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].event, "item.copy");
+        assert_eq!(entries[0].item_id.as_deref(), Some("id-1"));
+        assert_eq!(entries[0].item_title.as_deref(), Some("GitHub"));
+        assert_eq!(entries[0].detail.as_deref(), Some("password"));
+        assert_eq!(entries[1].event, "vault.unlock");
+        assert!(entries[1].item_title.is_none());
+
+        // Deleting an item keeps its title in the activity log.
+        let key = derive_key("audit-password", None).unwrap().key;
+        let id = create_account_item(&conn, "built-in-accounts", "Doomed", "u", "pw", None, None, None, &key).unwrap();
+        delete_item(&conn, &id).unwrap();
+        let entries = list_audit_log(&conn, 10).unwrap();
+        assert_eq!(entries[0].event, "item.delete");
+        assert_eq!(entries[0].item_title.as_deref(), Some("Doomed"));
     }
 
     #[test]

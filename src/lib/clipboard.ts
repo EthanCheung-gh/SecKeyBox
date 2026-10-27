@@ -1,4 +1,4 @@
-import { clearClipboard, copyToClipboard } from '@/lib/tauri';
+import { clearClipboard, copyToClipboard, type CopyContext } from '@/lib/tauri';
 import { useSettingsStore } from '@/stores/settings';
 
 /**
@@ -7,8 +7,8 @@ import { useSettingsStore } from '@/stores/settings';
  * Every copy site goes through here so the configured policy
  * (`clipboardClearSeconds`, 0 = keep) is applied consistently.
  */
-export async function copySecret(text: string): Promise<void> {
-  await copyToClipboard(text);
+export async function copySecret(text: string, context?: CopyContext): Promise<void> {
+  await copyToClipboard(text, context);
   const seconds = useSettingsStore.getState().clipboardClearSeconds;
   if (seconds <= 0) return;
   // Don't swallow the promise: the copy already succeeded, and a failed

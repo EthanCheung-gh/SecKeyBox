@@ -293,6 +293,16 @@ export interface AttachmentMeta {
   created_at: number;
 }
 
+/** One activity-log record (never contains secret values). */
+export interface AuditEntry {
+  id: number;
+  event: string;
+  item_id?: string | null;
+  item_title?: string | null;
+  detail?: string | null;
+  created_at: number;
+}
+
 /** A decrypted attachment fetched for preview/save. */
 export interface AttachmentData {
   filename: string;

@@ -6,7 +6,7 @@ use tauri::State;
 use crate::db::{
     get_account_item_detail, get_all_items, get_api_key_item_detail, get_cloud_item_detail,
     get_database_item_detail, get_license_item_detail, get_smtp_item_detail,
-    get_ssh_item_detail, DbConnection,
+    get_ssh_item_detail, list_audit_log, AuditEntry, DbConnection,
 };
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;
@@ -283,4 +283,22 @@ mod tests {
     fn chrono_now_plus(days: i64) -> i64 {
         now() + days * 86400
     }
+}
+
+/// Recent activity entries (newest first), capped at 2000.
+#[tauri::command]
+pub fn get_activity_log(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    limit: Option<i64>,
+) -> Result<Vec<AuditEntry>> {
+    if !vault_state.is_unlocked() {
+        return Err(VaultError::VaultLocked);
+    }
+    let conn = db
+        .inner()
+        .0
+        .lock()
+        .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+    list_audit_log(&conn, limit.unwrap_or(200))
 }

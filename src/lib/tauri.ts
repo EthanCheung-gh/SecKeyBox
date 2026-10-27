@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -165,8 +165,20 @@ export async function toggleItemFavorite(id: string): Promise<void> {
   return invoke<void>('toggle_item_favorite', { id });
 }
 
-export async function copyToClipboard(text: string): Promise<void> {
-  return invoke<void>('copy_to_clipboard', { text });
+/** Optional context so the backend can record an activity entry. */
+export interface CopyContext {
+  itemId?: string;
+  itemTitle?: string;
+  field?: string;
+}
+
+export async function copyToClipboard(text: string, context?: CopyContext): Promise<void> {
+  return invoke<void>('copy_to_clipboard', {
+    text,
+    itemId: context?.itemId,
+    itemTitle: context?.itemTitle,
+    field: context?.field,
+  });
 }
 
 export async function clearClipboard(): Promise<void> {
@@ -257,4 +269,10 @@ export async function saveAttachmentToPath(
 
 export async function deleteAttachment(itemId: string, attachmentId: string): Promise<void> {
   return invoke<void>('delete_attachment_cmd', { itemId, attachmentId });
+}
+
+// --- Activity log ---
+
+export async function getActivityLog(limit = 200): Promise<AuditEntry[]> {
+  return invoke<AuditEntry[]>('get_activity_log', { limit });
 }

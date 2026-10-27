@@ -29,8 +29,12 @@ export function DetailPanel() {
     );
   }
 
-  const handleCopy = async (text: string) => {
-    await copySecret(text);
+  const handleCopy = async (text: string, field?: string) => {
+    await copySecret(text, {
+      itemId: selectedItem?.id,
+      itemTitle: selectedItem?.title,
+      field,
+    });
   };
 
   const renderAccountDetail = () => {
@@ -41,7 +45,7 @@ export function DetailPanel() {
           <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.username')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium dark:text-gray-100">{item.username}</span>
-            <Button variant="ghost" size="sm" onClick={() => handleCopy(item.username)}>
+            <Button variant="ghost" size="sm" onClick={() => handleCopy(item.username, 'username')}>
               <Copy className="h-4 w-4" />
             </Button>
           </div>
@@ -56,7 +60,7 @@ export function DetailPanel() {
             <Button variant="ghost" size="sm" onClick={() => setShowPassword(!showPassword)}>
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleCopy(item.password)}>
+            <Button variant="ghost" size="sm" onClick={() => handleCopy(item.password, 'password')}>
               <Copy className="h-4 w-4" />
             </Button>
           </div>
@@ -96,7 +100,7 @@ export function DetailPanel() {
           <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.keyName')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium dark:text-gray-100">{item.key_name}</span>
-            <Button variant="ghost" size="sm" onClick={() => handleCopy(item.key_name)}>
+            <Button variant="ghost" size="sm" onClick={() => handleCopy(item.key_name, 'key_name')}>
               <Copy className="h-4 w-4" />
             </Button>
           </div>
@@ -111,7 +115,7 @@ export function DetailPanel() {
             <Button variant="ghost" size="sm" onClick={() => setShowKeyValue(!showKeyValue)}>
               {showKeyValue ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleCopy(item.key_value)}>
+            <Button variant="ghost" size="sm" onClick={() => handleCopy(item.key_value, 'key_value')}>
               <Copy className="h-4 w-4" />
             </Button>
           </div>
@@ -129,7 +133,7 @@ export function DetailPanel() {
               >
                 {item.endpoint}
               </a>
-              <Button variant="ghost" size="sm" onClick={() => handleCopy(item.endpoint!)}>
+              <Button variant="ghost" size="sm" onClick={() => handleCopy(item.endpoint!, 'endpoint')}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
@@ -141,7 +145,7 @@ export function DetailPanel() {
             <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.authMethod')}</label>
             <div className="flex items-center gap-2">
               <span className="font-medium capitalize dark:text-gray-100">{item.auth_method.replace('_', ' ')}</span>
-              <Button variant="ghost" size="sm" onClick={() => handleCopy(item.auth_method!)}>
+              <Button variant="ghost" size="sm" onClick={() => handleCopy(item.auth_method!, 'auth_method')}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>
@@ -176,7 +180,7 @@ export function DetailPanel() {
               <div key={i} className="rounded-md border border-gray-200 p-3 dark:border-gray-600">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="font-mono text-sm font-medium text-gray-700 dark:text-gray-300">{v.key}</span>
-                  <Button variant="ghost" size="sm" onClick={() => handleCopy(v.key)}>
+                  <Button variant="ghost" size="sm" onClick={() => handleCopy(v.key, v.key)}>
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
@@ -191,7 +195,7 @@ export function DetailPanel() {
                   >
                     {showEnvVarValues[i] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleCopy(v.value)}>
+                  <Button variant="ghost" size="sm" onClick={() => handleCopy(v.value, v.key)}>
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
@@ -233,7 +237,7 @@ export function DetailPanel() {
             <Button variant="ghost" size="sm" onClick={onToggle}>
               {shown ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleCopy(value)}>
+            <Button variant="ghost" size="sm" onClick={() => handleCopy(value, 'password')}>
               <Copy className="h-4 w-4" />
             </Button>
           </>
@@ -256,7 +260,7 @@ export function DetailPanel() {
             <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.connectionUrl')}</label>
             <div className="flex items-center gap-2">
               <span className="break-all font-mono text-sm dark:text-gray-100">{item.connection_url}</span>
-              <Button variant="ghost" size="sm" onClick={() => handleCopy(item.connection_url!)}>
+              <Button variant="ghost" size="sm" onClick={() => handleCopy(item.connection_url!, 'connection_url')}>
                 <Copy className="h-4 w-4" />
               </Button>
             </div>

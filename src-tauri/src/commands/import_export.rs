@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::db::{get_all_groups, get_all_items, DbConnection, Group};
+use crate::db::{log_event, get_all_groups, get_all_items, DbConnection, Group};
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;
 
@@ -308,8 +308,16 @@ pub fn export_vault(db: State<DbConnection>, vault_state: State<VaultState>) -> 
         items,
     };
 
-    serde_json::to_string_pretty(&export)
-        .map_err(|e| VaultError::DatabaseError(format!("Failed to serialize export: {}", e)))
+    let json = serde_json::to_string_pretty(&export)
+        .map_err(|e| VaultError::DatabaseError(format!("Failed to serialize export: {}", e)))?;
+    log_event(
+        &conn,
+        "vault.export",
+        None,
+        None,
+        Some(&format!("{} items", export.items.len())),
+    );
+    Ok(json)
 }
 
 #[tauri::command]

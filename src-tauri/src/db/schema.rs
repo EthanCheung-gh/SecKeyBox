@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 6;
+const SCHEMA_VERSION: i32 = 7;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -145,6 +145,17 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         );
 
         CREATE INDEX IF NOT EXISTS idx_attachments_item ON item_attachments(item_id, created_at);
+
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event TEXT NOT NULL,
+            item_id TEXT,
+            item_title TEXT,
+            detail TEXT,
+            created_at INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
 
         CREATE INDEX IF NOT EXISTS idx_items_group ON items(group_id);
         CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
@@ -335,6 +346,27 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 created_at INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_attachments_item ON item_attachments(item_id, created_at);
+            COMMIT;
+            "#,
+        )
+        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    // Migration to version 7: local activity log. Only event kinds and item
+    // titles are recorded — never secret values.
+    if version < 7 {
+        conn.execute_batch(
+            r#"
+            BEGIN;
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event TEXT NOT NULL,
+                item_id TEXT,
+                item_title TEXT,
+                detail TEXT,
+                created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC);
             COMMIT;
             "#,
         )
