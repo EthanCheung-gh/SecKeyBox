@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import type { Update } from '@tauri-apps/plugin-updater';
 import { Settings, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { useSettingsStore, type Language } from '@/stores/settings';
 import { setAutoLockMinutes as persistAutoLockMinutes } from '@/lib/tauri';
 import { useI18n } from '@/i18n';
+import { checkForUpdate, installUpdate, restartApp } from '@/lib/updater';
 
 const selectClass =
   'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100';
@@ -18,6 +20,39 @@ export function SettingsModal() {
   const setAutoLockMinutes = useSettingsStore((s) => s.setAutoLockMinutes);
   const setClipboardClearSeconds = useSettingsStore((s) => s.setClipboardClearSeconds);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
+
+  // --- updates ---
+  const [updateState, setUpdateState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'checking' }
+    | { kind: 'up-to-date' }
+    | { kind: 'available'; update: Update }
+    | { kind: 'downloading'; percent: number }
+    | { kind: 'ready' }
+    | { kind: 'error'; message: string }
+  >({ kind: 'idle' });
+
+  const handleCheckUpdate = async () => {
+    setUpdateState({ kind: 'checking' });
+    try {
+      const update = await checkForUpdate();
+      setUpdateState(update ? { kind: 'available', update } : { kind: 'up-to-date' });
+    } catch (e) {
+      setUpdateState({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  const handleInstall = async (update: Update) => {
+    setUpdateState({ kind: 'downloading', percent: 0 });
+    try {
+      await installUpdate(update, (progress) =>
+        setUpdateState({ kind: 'downloading', percent: Math.round(progress * 100) })
+      );
+      setUpdateState({ kind: 'ready' });
+    } catch (e) {
+      setUpdateState({ kind: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  };
 
   const autoLockOptions = [
     { value: 0, label: t('settings.off') },
@@ -112,6 +147,58 @@ export function SettingsModal() {
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('settings.clipboardHint')}
             </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">{t('update.title')}</label>
+            <div className="space-y-2 rounded-md border border-gray-200 p-3 text-sm dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t('update.currentVersion', { version: __APP_VERSION__ })}
+              </p>
+              {updateState.kind === 'idle' && (
+                <Button variant="outline" size="sm" onClick={() => void handleCheckUpdate()}>
+                  {t('update.check')}
+                </Button>
+              )}
+              {updateState.kind === 'checking' && (
+                <p className="text-xs text-gray-500">{t('update.checking')}</p>
+              )}
+              {updateState.kind === 'up-to-date' && (
+                <p className="text-xs text-green-600 dark:text-green-400">{t('update.upToDate')}</p>
+              )}
+              {updateState.kind === 'available' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-primary-600 dark:text-primary-400">
+                    {t('update.available', { version: updateState.update.version })}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleInstall(updateState.update)}
+                  >
+                    {t('update.install')}
+                  </Button>
+                </div>
+              )}
+              {updateState.kind === 'downloading' && (
+                <p className="text-xs text-gray-500">
+                  {t('update.downloading', { percent: updateState.percent })}
+                </p>
+              )}
+              {updateState.kind === 'ready' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-green-600 dark:text-green-400">{t('update.ready')}</p>
+                  <Button variant="outline" size="sm" onClick={() => void restartApp()}>
+                    {t('update.restart')}
+                  </Button>
+                </div>
+              )}
+              {updateState.kind === 'error' && (
+                <p className="text-xs text-red-500">
+                  {t('update.error', { message: updateState.message })}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end">

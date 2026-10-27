@@ -26,7 +26,8 @@
           "/usr/bin/seckeybox-cli": "../cli/target/release/seckeybox-cli"
         }
       }
-    }
+    },
+    "createUpdaterArtifacts": false
   },
   "app": {
     "withGlobalTauri": true,
@@ -63,5 +64,12 @@
       "csp": null
     }
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEwMUM1OTVENDQyMTgwNkYKUldSdmdDRkVYVmtjRU9XUEdDSHF0b1hwR0NOY1JpNXdKV2J2WXRZM1hQa0lUVE81dFltU1lNUTkK",
+      "endpoints": [
+        "https://github.com/EthanCheung-gh/SecKeyBox/releases/latest/download/latest.json"
+      ]
+    }
+  }
 }

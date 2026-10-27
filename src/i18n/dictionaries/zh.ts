@@ -337,6 +337,19 @@ export const zh: Record<string, string> = {
   'audit.event.attachment.add': '添加附件',
   'audit.event.attachment.delete': '删除附件',
 
+  // updates
+  'update.title': '软件更新',
+  'update.currentVersion': '当前版本 {version}',
+  'update.check': '检查更新',
+  'update.checking': '检查中…',
+  'update.upToDate': '已是最新版本。',
+  'update.available': '发现新版本 {version}。',
+  'update.install': '下载并安装',
+  'update.downloading': '下载中… {percent}%',
+  'update.ready': '更新已安装，重启后生效。',
+  'update.restart': '立即重启',
+  'update.error': '检查更新失败：{error}',
+
   // generic errors
   'error.unknown': '出错了',
 };

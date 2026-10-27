@@ -337,6 +337,19 @@ export const en: Record<string, string> = {
   'audit.event.attachment.add': 'Attachment added',
   'audit.event.attachment.delete': 'Attachment deleted',
 
+  // updates
+  'update.title': 'Updates',
+  'update.currentVersion': 'Current version {version}',
+  'update.check': 'Check for updates',
+  'update.checking': 'Checking...',
+  'update.upToDate': 'You are on the latest version.',
+  'update.available': 'Version {version} is available.',
+  'update.install': 'Download and install',
+  'update.downloading': 'Downloading… {percent}%',
+  'update.ready': 'Update installed — restart to apply.',
+  'update.restart': 'Restart now',
+  'update.error': 'Update check failed: {error}',
+
   // generic errors
   'error.unknown': 'Something went wrong',
 };
