@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Permissions used by the SecKeyBox windows","local":true,"windows":["main","palette"],"permissions":["core:default","core:window:allow-show","core:window:allow-hide","core:window:allow-set-focus","clipboard-manager:default","dialog:default","fs:default","updater:default","process:allow-restart"]}}

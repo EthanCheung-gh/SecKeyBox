@@ -348,7 +348,7 @@ export const zh: Record<string, string> = {
   'update.downloading': '下载中… {percent}%',
   'update.ready': '更新已安装，重启后生效。',
   'update.restart': '立即重启',
-  'update.error': '检查更新失败：{error}',
+  'update.error': '检查更新失败：{message}',
 
   // generic errors
   'error.unknown': '出错了',

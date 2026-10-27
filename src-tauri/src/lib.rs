@@ -18,8 +18,8 @@ pub use db::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use commands::*;
-    use tauri::{Emitter, Listener, Manager};
-    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+    use tauri::{Emitter, Manager};
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -48,14 +48,15 @@ pub fn run() {
             app.manage(VaultState::new());
 
             // Global shortcut toggles the quick-search palette window.
+            // tauri-plugin-global-shortcut 2.x delivers presses through the
+            // handler API; the old `global-shortcut://shortcut` event is not
+            // emitted any more, so listening for it silently did nothing.
             let shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::Space);
-            if let Err(e) = app.global_shortcut().register(shortcut) {
-                eprintln!("[WARN] Failed to register global shortcut: {:?}", e);
-            }
-
-            let app_handle = app.handle().clone();
-            app.listen("global-shortcut://shortcut", move |_event| {
-                if let Some(window) = app_handle.get_webview_window("palette") {
+            if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |app, _shortcut, event| {
+                if event.state != ShortcutState::Pressed {
+                    return;
+                }
+                if let Some(window) = app.get_webview_window("palette") {
                     if window.is_visible().unwrap_or(false) {
                         let _ = window.hide();
                     } else {
@@ -63,7 +64,9 @@ pub fn run() {
                         let _ = window.set_focus();
                     }
                 }
-            });
+            }) {
+                eprintln!("[WARN] Failed to register global shortcut: {:?}", e);
+            }
 
             // Exit app when main window is closed
             let app_handle = app.handle().clone();

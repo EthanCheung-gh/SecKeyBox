@@ -348,7 +348,7 @@ export const en: Record<string, string> = {
   'update.downloading': 'Downloading… {percent}%',
   'update.ready': 'Update installed — restart to apply.',
   'update.restart': 'Restart now',
-  'update.error': 'Update check failed: {error}',
+  'update.error': 'Update check failed: {message}',
 
   // generic errors
   'error.unknown': 'Something went wrong',
