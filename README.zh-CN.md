@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.4.0-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.5.0-blue?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
   <a href="license"><img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License"></a>
 </p>
@@ -50,6 +50,10 @@
 | 命令行取密 | `seckeybox-cli` 通过本地 socket（权限 0600）从运行中的应用读取密钥：`export DB_PASSWORD=$(seckeybox-cli get "生产数据库")`。只读——永远无法解锁或修改保险库 |
 | 加密附件 | 任意条目可挂载 SSH 私钥、证书、`.env` 或图片（≤5 MB）；内容经 AES-256-GCM 加密，仅文件元数据可读 |
 | TOTP 导入 | 粘贴 `otpauth://` URI 或扫描二维码截图，自动填充密钥、签发方与账号（支持 6 位 / 30 秒标准条目） |
+| 自定义字段 | 任意条目可添加加密的键值对，记录模板之外的信息 |
+| 标签 | 跨分组的标签，侧边栏可按标签筛选，一个条目可带多个标签 |
+| 本地备份 | 基于 `VACUUM INTO` 的一致性快照：每天一份 + 手动备份，保留最近 10 份；恢复前校验完整性并先快照当前状态 |
+| 托盘常驻 | 关闭窗口后应用驻留系统托盘（显示 / 锁定 / 退出），全局快捷键与空闲锁定继续生效 |
 | 会话安全 | 自动锁定可配置（关闭 / 1 / 5 / 15 / 30 分钟，由应用进程强制执行，窗口隐藏也生效）；剪贴板自动清除可配置（0 / 15 / 30 / 60 秒）；密钥释放时内存清零 |
 | 外观 | 亮色 / 暗色 / 跟随系统主题 |
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.4.0-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.5.0-blue?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
   <a href="license"><img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License"></a>
 </p>
@@ -50,6 +50,10 @@ Developer credentials do not fit the "website + password" model of classic passw
 | CLI access | `seckeybox-cli` reads secrets from the running app over a local socket (mode 0600): `export DB_PASSWORD=$(seckeybox-cli get "prod database")`. Read-only — it can never unlock or modify the vault |
 | Encrypted attachments | Attach SSH private keys, certificates, `.env` bundles or images (up to 5 MB) to any item; contents are AES-256-GCM encrypted, only file metadata stays readable |
 | TOTP import | Paste an `otpauth://` URI or scan a QR screenshot; secret, issuer and account are filled in automatically (6-digit / 30-second entries) |
+| Custom fields | Add encrypted key/value pairs to any item for whatever the credential template does not cover |
+| Tags | Cross-group labels; filter the list by tag from the sidebar; items can carry several tags |
+| Local backups | Consistent `VACUUM INTO` snapshots, one per day plus on demand, ten most recent kept; restore verifies integrity and snapshots the current state first |
+| Tray resident | Closing the window keeps SecKeyBox running in the system tray (Show / Lock / Quit); the global hotkey and idle lock keep working |
 | Session safety | Configurable auto-lock (off / 1 / 5 / 15 / 30 min, enforced by the app process even while the window is hidden) and clipboard auto-clear (0 / 15 / 30 / 60 s); keys are zeroized on drop |
 | Appearance | Light / dark / follow-system theme |
 
