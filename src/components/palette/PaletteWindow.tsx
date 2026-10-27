@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { copySecret } from '@/lib/clipboard';
+import { useI18n } from '@/i18n';
 import type { ItemSummary, ItemDetail } from '@/types';
 
 // 全局快捷键呼出的迷你搜索条：搜索 → ↑/↓ 选择 → 回车复制主密钥 → Esc 关闭。
 // 锁定时后端返回空列表；这里按空结果渲染即可（调用前不会解锁）。
 export function PaletteWindow() {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ItemSummary[]>([]);
   const [selected, setSelected] = useState(0);
@@ -28,7 +30,7 @@ export function PaletteWindow() {
           setStatus(null);
         }
       } catch (e) {
-        if (!cancelled) setStatus(`搜索失败: ${String(e)}`);
+        if (!cancelled) setStatus(t('palette.searchFailed', { error: String(e) }));
       }
     }, 200);
     return () => {
@@ -60,12 +62,12 @@ export function PaletteWindow() {
                       : detail.password;
       if (value) {
         await copySecret(value);
-        setStatus(`已复制 ${item.title} 的密钥`);
+        setStatus(t('palette.copied', { title: item.title }));
       } else {
-        setStatus(`${item.title} 没有可复制的密钥`);
+        setStatus(t('palette.noSecret', { title: item.title }));
       }
     } catch (e) {
-      setStatus(`复制失败: ${String(e)}`);
+      setStatus(t('palette.copyFailed', { error: String(e) }));
     }
   };
 
@@ -95,7 +97,7 @@ export function PaletteWindow() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search and press Enter to copy..."
+          placeholder={t('palette.placeholder')}
           className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
         />
         <button
@@ -109,7 +111,7 @@ export function PaletteWindow() {
             }
           }}
           className="shrink-0 rounded-md border border-gray-300 px-2.5 py-2 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-          title="打开主窗口"
+          title={t('palette.openMain')}
         >
           ⌂
         </button>
@@ -120,7 +122,7 @@ export function PaletteWindow() {
       <div className="max-h-[280px] flex-1 overflow-y-auto">
         {results.length === 0 ? (
           <p className="py-4 text-center text-sm text-gray-400">
-            {query ? 'No items match' : 'Type to search the vault'}
+            {query ? t('palette.noMatch') : t('palette.typeToSearch')}
           </p>
         ) : (
           results.slice(0, 10).map((item, i) => (
@@ -140,7 +142,7 @@ export function PaletteWindow() {
       </div>
 
       <p className="mt-1 text-center text-[10px] text-gray-400">
-        ↑↓ 选择 · Enter 复制主密钥 · Esc 关闭
+        {t('palette.footer')}
       </p>
     </div>
   );

@@ -3,8 +3,10 @@ import { Plus, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
+import { useI18n } from '@/i18n';
 
 export function ItemList() {
+  const { t } = useI18n();
   const items = useVaultStore((s) => s.items);
   const searchItems = useVaultStore((s) => s.searchItems);
   const clearSearch = useVaultStore((s) => s.clearSearch);
@@ -70,12 +72,12 @@ export function ItemList() {
           onChange={(e) => setSortBy(e.target.value as any)}
           className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
         >
-          <option value="name_asc">Name (A-Z)</option>
-          <option value="name_desc">Name (Z-A)</option>
-          <option value="created">Created (newest)</option>
-          <option value="updated">Modified (newest)</option>
+          <option value="name_asc">{t('list.sortNameAsc')}</option>
+          <option value="name_desc">{t('list.sortNameDesc')}</option>
+          <option value="created">{t('list.sortCreated')}</option>
+          <option value="updated">{t('list.sortModified')}</option>
         </select>
-        <Button size="sm" onClick={openAddItemModal}>
+        <Button size="sm" onClick={openAddItemModal} title={t('list.addItem')}>
           <Plus className="h-4 w-4" />
         </Button>
       </div>
@@ -84,10 +86,10 @@ export function ItemList() {
         {filteredAndSortedItems.length === 0 ? (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
             {searchActive
-              ? 'No items match your search'
+              ? t('list.noSearchResults')
               : showFavoritesOnly
-                ? 'No favorite items'
-                : 'No items'}
+                ? t('list.noFavorites')
+                : t('list.noItems')}
           </div>
         ) : (
           filteredAndSortedItems.map((item) => (

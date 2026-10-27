@@ -7,8 +7,10 @@ import { ChangePasswordModal } from '@/components/modals/ChangePasswordModal';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
+import { useI18n, groupDisplayName } from '@/i18n';
 
 export function Sidebar() {
+  const { t } = useI18n();
   const groups = useVaultStore((s) => s.groups);
   const loadItems = useVaultStore((s) => s.loadItems);
   const lock = useVaultStore((s) => s.lock);
@@ -39,7 +41,7 @@ export function Sidebar() {
       <div className="p-4">
         <input
           type="text"
-          placeholder="Search..."
+          placeholder={t('sidebar.searchPlaceholder')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
@@ -55,7 +57,7 @@ export function Sidebar() {
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'
           }`}
         >
-          📁 All Items
+          📁 {t('sidebar.allItems')}
         </button>
         
         <button
@@ -66,7 +68,7 @@ export function Sidebar() {
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'
           }`}
         >
-          ⭐ Favorites
+          ⭐ {t('sidebar.favorites')}
         </button>
         
         <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
@@ -82,7 +84,7 @@ export function Sidebar() {
                     : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'
                 }`}
               >
-                {group.icon || '📂'} {group.name}
+                {group.icon || '📂'} {groupDisplayName(group, t)}
               </button>
               <div className="relative">
                 <button
@@ -100,16 +102,16 @@ export function Sidebar() {
                       }}
                       className="block w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-200"
                     >
-                      Rename
+                      {t('sidebar.rename')}
                     </button>
                     <button
                       onClick={() => {
-                        openDeleteConfirm('group', group.id, group.name);
+                        openDeleteConfirm('group', group.id, groupDisplayName(group, t));
                         setMenuOpenId(null);
                       }}
                       className="block w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600"
                     >
-                      Delete
+                      {t('sidebar.delete')}
                     </button>
                   </div>
                 )}
@@ -124,7 +126,7 @@ export function Sidebar() {
           className="mt-2 w-full justify-start text-gray-500 dark:text-gray-400"
           onClick={openAddGroupModal}
         >
-          <Plus className="mr-2 h-4 w-4" /> Add Group
+          <Plus className="mr-2 h-4 w-4" /> {t('sidebar.addGroup')}
         </Button>
       </div>
       
@@ -135,7 +137,7 @@ export function Sidebar() {
           className="w-full justify-start text-gray-500 dark:text-gray-400"
           onClick={openSecurityPanel}
         >
-          <ShieldCheck className="mr-2 h-4 w-4" /> 安全体检
+          <ShieldCheck className="mr-2 h-4 w-4" /> {t('sidebar.securityCheck')}
         </Button>
         <ImportExportModal />
         <ChangePasswordModal />
@@ -147,7 +149,7 @@ export function Sidebar() {
             className="text-gray-500 dark:text-gray-400"
             onClick={lock}
           >
-            <Lock className="mr-2 h-4 w-4" /> Lock
+            <Lock className="mr-2 h-4 w-4" /> {t('sidebar.lock')}
           </Button>
           <ThemeToggle />
         </div>

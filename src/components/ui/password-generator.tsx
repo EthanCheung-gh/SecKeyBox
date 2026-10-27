@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useI18n } from '@/i18n';
+import { copySecret } from '@/lib/clipboard';
 import { RefreshCw, Check } from 'lucide-react';
 
 const SETS = {
@@ -89,13 +91,14 @@ export function PasswordGenerator({
 }: {
   onUse: (password: string) => void;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [options, setOptions] = useState(DEFAULT_GENERATOR_OPTIONS);
   const [copied, setCopied] = useState(false);
   const password = useMemo(() => generatePassword(options), [options]);
 
   const strength = strengthScore(password);
-  const strengthLabel = strength >= 80 ? '强' : strength >= 50 ? '中' : '弱';
+  const strengthLabel = strength >= 80 ? t('passwordGen.strong') : strength >= 50 ? t('passwordGen.medium') : t('passwordGen.weak');
 
   if (!open) {
     return (
@@ -104,7 +107,7 @@ export function PasswordGenerator({
         onClick={() => setOpen(true)}
         className="text-xs text-primary-600 hover:underline dark:text-primary-400"
       >
-        生成强密码
+        {t('passwordGen.title')}
       </button>
     );
   }
@@ -117,7 +120,7 @@ export function PasswordGenerator({
         </code>
         <button
           type="button"
-          title="重新生成"
+          title={t('passwordGen.regenerate')}
           onClick={() => setOptions({ ...options })}
           className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
         >
@@ -132,11 +135,11 @@ export function PasswordGenerator({
             style={{ width: `${strength}%` }}
           />
         </div>
-        <span>强度: {strengthLabel}</span>
+        <span>{t('passwordGen.strength', { label: strengthLabel })}</span>
       </div>
 
       <label className="mb-2 flex items-center gap-2 text-xs dark:text-gray-300">
-        长度 {options.length}
+        {t('passwordGen.lengthLabel', { count: options.length })}
         <input
           type="range"
           min={8}
@@ -150,10 +153,10 @@ export function PasswordGenerator({
       <div className="mb-2 grid grid-cols-2 gap-1 text-xs dark:text-gray-300">
         {(
           [
-            ['lower', '小写字母 a-z'],
-            ['upper', '大写字母 A-Z'],
-            ['digits', '数字 0-9'],
-            ['symbols', '符号 !@#'],
+            ['lower', t('passwordGen.lower')],
+            ['upper', t('passwordGen.upper')],
+            ['digits', t('passwordGen.digits')],
+            ['symbols', t('passwordGen.symbols')],
           ] as const
         ).map(([key, label]) => (
           <label key={key} className="flex items-center gap-1">
@@ -171,7 +174,7 @@ export function PasswordGenerator({
             checked={options.avoidAmbiguous}
             onChange={(e) => setOptions({ ...options, avoidAmbiguous: e.target.checked })}
           />
-          排除易混字符
+          {t('passwordGen.avoidAmbiguous')}
         </label>
       </div>
 
@@ -179,13 +182,13 @@ export function PasswordGenerator({
         <button
           type="button"
           onClick={async () => {
-            await navigator.clipboard.writeText(password).catch(() => {});
+            await copySecret(password).catch(() => undefined);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
           className="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
         >
-          {copied ? <Check className="h-3.5 w-3.5" /> : '复制'}
+          {copied ? <Check className="h-3.5 w-3.5" /> : t('passwordGen.copy')}
         </button>
         <button
           type="button"
@@ -195,7 +198,7 @@ export function PasswordGenerator({
           }}
           className="rounded bg-primary-600 px-2 py-1 text-xs text-white hover:bg-primary-700"
         >
-          使用
+          {t('passwordGen.use')}
         </button>
       </div>
     </div>

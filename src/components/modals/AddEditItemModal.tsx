@@ -8,6 +8,7 @@ import { TotpImport } from '@/components/ui/totp-import';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
 import type { EnvVarPair } from '@/types';
+import { useI18n, groupDisplayName } from '@/i18n';
 
 // 统一表单模型：所有类型的字段放在一个 state 里，未用到的字段保持空串。
 // 密文类字段（password/keyValue/secret/licenseKey/passphrase）在编辑模式下
@@ -61,22 +62,25 @@ const ItemTypeSelect = ({
 }: {
   value: string;
   onChange: (v: 'account' | 'api_key' | 'env_var' | 'database' | 'ssh' | 'cloud' | 'license' | 'smtp') => void;
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <select
     value={value}
     onChange={(e) => onChange(e.target.value as Parameters<typeof onChange>[0])}
     className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
   >
-    <option value="account">Account</option>
-    <option value="api_key">API Key</option>
-    <option value="env_var">Environment Variables</option>
-    <option value="database">Database</option>
-    <option value="ssh">SSH Server</option>
-    <option value="cloud">Cloud Credential</option>
-    <option value="license">License</option>
-    <option value="smtp">Email (SMTP)</option>
+    <option value="account">{t('type.account')}</option>
+    <option value="api_key">{t('type.api_key')}</option>
+    <option value="env_var">{t('type.env_var')}</option>
+    <option value="database">{t('type.database')}</option>
+    <option value="ssh">{t('type.ssh')}</option>
+    <option value="cloud">{t('type.cloud')}</option>
+    <option value="license">{t('type.license')}</option>
+    <option value="smtp">{t('type.smtp')}</option>
   </select>
-);
+  );
+};
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div>
@@ -89,9 +93,10 @@ const textAreaClass =
   'w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100';
 const selectClass = textAreaClass;
 
-const SECRET_HINT_KEEP = '(leave blank to keep)';
+
 
 export function AddEditItemModal() {
+  const { t } = useI18n();
   const isOpen = useUIStore((s) => s.isAddItemModalOpen || s.editingItemId !== null);
   const editingItemId = useUIStore((s) => s.editingItemId);
   const closeAddItemModal = useUIStore((s) => s.closeAddItemModal);
@@ -469,10 +474,10 @@ export function AddEditItemModal() {
       case 'account':
         return (
           <>
-            <Field label="Username *">
+            <Field label={t('form.username')}>
               <Input value={form.username} onChange={(e) => set({ username: e.target.value })} required />
             </Field>
-            <Field label={`Password ${isEditing ? SECRET_HINT_KEEP : '*'}`}>
+            <Field label={`Password ${isEditing ? t('form.keepSecretHint') : '*'}`}>
               <Input
                 type="password"
                 value={form.password}
@@ -484,11 +489,11 @@ export function AddEditItemModal() {
               </div>
               <PasswordStrength password={form.password} />
             </Field>
-            <Field label="两步验证密钥 (TOTP, base32)">
+            <Field label={t('form.totpSecret')}>
               <Input
                 value={form.totpSecret}
                 onChange={(e) => set({ totpSecret: e.target.value })}
-                placeholder="JBSWY3DPEHPK3PXP（留空 = 不启用 / 清除）"
+                placeholder={t('form.totpPlaceholder')}
                 className="font-mono text-sm"
               />
               <TotpImport
@@ -502,7 +507,7 @@ export function AddEditItemModal() {
                 }
               />
             </Field>
-            <Field label="Website">
+            <Field label={t('form.website')}>
               <Input value={form.website} onChange={(e) => set({ website: e.target.value })} />
             </Field>
           </>
@@ -510,7 +515,7 @@ export function AddEditItemModal() {
       case 'api_key':
         return (
           <>
-            <Field label="Key Name *">
+            <Field label={t('form.keyName')}>
               <Input
                 value={form.keyName}
                 onChange={(e) => set({ keyName: e.target.value })}
@@ -518,7 +523,7 @@ export function AddEditItemModal() {
                 placeholder="e.g., OpenAI API Key"
               />
             </Field>
-            <Field label={`Key Value ${isEditing ? SECRET_HINT_KEEP : '*'}`}>
+            <Field label={`Key Value ${isEditing ? t('form.keepSecretHint') : '*'}`}>
               <textarea
                 value={form.keyValue}
                 onChange={(e) => set({ keyValue: e.target.value })}
@@ -528,34 +533,34 @@ export function AddEditItemModal() {
                 placeholder="Paste your API key here..."
               />
             </Field>
-            <Field label="Endpoint URL">
+            <Field label={t('detail.endpoint')}>
               <Input
                 value={form.endpoint}
                 onChange={(e) => set({ endpoint: e.target.value })}
                 placeholder="https://api.example.com"
               />
             </Field>
-            <Field label="Auth Method">
+            <Field label={t('form.authMethod')}>
               <select
                 value={form.authMethod}
                 onChange={(e) => set({ authMethod: e.target.value })}
                 className={selectClass}
               >
-                <option value="">Select...</option>
-                <option value="bearer">Bearer Token</option>
-                <option value="api_key">API Key Header</option>
-                <option value="basic">Basic Auth</option>
-                <option value="custom">Custom</option>
+                <option value="">{t('common.select')}</option>
+                <option value="bearer">{t('form.authBearer')}</option>
+                <option value="api_key">{t('form.authApiKeyHeader')}</option>
+                <option value="basic">{t('form.authBasic')}</option>
+                <option value="custom">{t('form.authCustom')}</option>
               </select>
             </Field>
           </>
         );
       case 'env_var':
         return (
-          <Field label="Variables *">
+          <Field label={`${t('form.variables')} *`}>
             <div className="mb-2 flex justify-end">
               <Button type="button" variant="outline" size="sm" onClick={addEnvVar}>
-                + Add Variable
+                + {t('form.addVariable')}
               </Button>
             </div>
             <div className="space-y-2">
@@ -586,42 +591,42 @@ export function AddEditItemModal() {
       case 'database':
         return (
           <>
-            <Field label="Database Type *">
+            <Field label={`${t('form.dbType')} *`}>
               <select value={form.dbType} onChange={(e) => set({ dbType: e.target.value })} className={selectClass} required>
-                <option value="">Select...</option>
+                <option value="">{t('common.select')}</option>
                 <option value="mysql">MySQL / MariaDB</option>
                 <option value="postgresql">PostgreSQL</option>
                 <option value="redis">Redis</option>
                 <option value="mongodb">MongoDB</option>
                 <option value="sqlserver">SQL Server</option>
                 <option value="sqlite">SQLite</option>
-                <option value="other">Other</option>
+                <option value="other">{t('common.other')}</option>
               </select>
             </Field>
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
-                <Field label="Host *">
+                <Field label={`${t('detail.host')} *`}>
                   <Input value={form.host} onChange={(e) => set({ host: e.target.value })} required placeholder="db.example.com" />
                 </Field>
               </div>
-              <Field label="Port">
+              <Field label={t('detail.port')}>
                 <Input type="number" value={form.port} onChange={(e) => set({ port: e.target.value })} placeholder="3306" />
               </Field>
             </div>
-            <Field label="Database Name">
+            <Field label={t('form.databaseName')}>
               <Input value={form.databaseName} onChange={(e) => set({ databaseName: e.target.value })} />
             </Field>
-            <Field label="Username">
+            <Field label={t('form.username').replace(' *', '')}>
               <Input value={form.username} onChange={(e) => set({ username: e.target.value })} />
             </Field>
-            <Field label={`Password ${isEditing ? SECRET_HINT_KEEP : ''}`}>
+            <Field label={`Password ${isEditing ? t('form.keepSecretHint') : ''}`}>
               <Input
                 type="password"
                 value={form.password}
                 onChange={(e) => set({ password: e.target.value })}
               />
             </Field>
-            <Field label="Connection URL">
+            <Field label={t('form.connectionUrl')}>
               <Input
                 value={form.connectionUrl}
                 onChange={(e) => set({ connectionUrl: e.target.value })}
@@ -636,21 +641,21 @@ export function AddEditItemModal() {
           <>
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
-                <Field label="Host *">
+                <Field label={`${t('detail.host')} *`}>
                   <Input value={form.host} onChange={(e) => set({ host: e.target.value })} required placeholder="server.example.com" />
                 </Field>
               </div>
-              <Field label="Port">
+              <Field label={t('detail.port')}>
                 <Input type="number" value={form.port} onChange={(e) => set({ port: e.target.value })} placeholder="22" />
               </Field>
             </div>
-            <Field label="Username *">
+            <Field label={t('form.username')}>
               <Input value={form.username} onChange={(e) => set({ username: e.target.value })} required placeholder="root" />
             </Field>
-            <Field label={`Password ${isEditing ? SECRET_HINT_KEEP : '(leave blank if using key auth)'}`}>
+            <Field label={`${t('form.password')} ${isEditing ? t('form.keepSecretHint') : t('form.leaveBlankIfKeyAuth')}`}>
               <Input type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} />
             </Field>
-            <Field label="Private Key Path">
+            <Field label={t('form.keyPath')}>
               <Input
                 value={form.keyPath}
                 onChange={(e) => set({ keyPath: e.target.value })}
@@ -658,7 +663,7 @@ export function AddEditItemModal() {
                 className="font-mono text-sm"
               />
             </Field>
-            <Field label={`Key Passphrase ${isEditing ? SECRET_HINT_KEEP : ''}`}>
+            <Field label={`Key Passphrase ${isEditing ? t('form.keepSecretHint') : ''}`}>
               <Input type="password" value={form.passphrase} onChange={(e) => set({ passphrase: e.target.value })} />
             </Field>
           </>
@@ -666,18 +671,18 @@ export function AddEditItemModal() {
       case 'cloud':
         return (
           <>
-            <Field label="Provider *">
+            <Field label={`${t('form.provider')} *`}>
               <select value={form.provider} onChange={(e) => set({ provider: e.target.value })} className={selectClass} required>
-                <option value="">Select...</option>
+                <option value="">{t('common.select')}</option>
                 <option value="aws">AWS</option>
                 <option value="gcp">Google Cloud</option>
                 <option value="azure">Azure</option>
                 <option value="alicloud">Alibaba Cloud</option>
                 <option value="tencentcloud">Tencent Cloud</option>
-                <option value="other">Other</option>
+                <option value="other">{t('common.other')}</option>
               </select>
             </Field>
-            <Field label="Access Key ID *">
+            <Field label={t('form.accessKeyId')}>
               <Input
                 value={form.accessKeyId}
                 onChange={(e) => set({ accessKeyId: e.target.value })}
@@ -686,7 +691,7 @@ export function AddEditItemModal() {
                 className="font-mono text-sm"
               />
             </Field>
-            <Field label={`Secret ${isEditing ? SECRET_HINT_KEEP : '*'}`}>
+            <Field label={`Secret ${isEditing ? t('form.keepSecretHint') : '*'}`}>
               <textarea
                 value={form.secret}
                 onChange={(e) => set({ secret: e.target.value })}
@@ -695,7 +700,7 @@ export function AddEditItemModal() {
                 required={!isEditing}
               />
             </Field>
-            <Field label="Region">
+            <Field label={t('form.region')}>
               <Input value={form.region} onChange={(e) => set({ region: e.target.value })} placeholder="cn-north-1" />
             </Field>
           </>
@@ -703,10 +708,10 @@ export function AddEditItemModal() {
       case 'license':
         return (
           <>
-            <Field label="Software Name *">
+            <Field label={t('form.softwareName')}>
               <Input value={form.softwareName} onChange={(e) => set({ softwareName: e.target.value })} required placeholder="JetBrains All Products" />
             </Field>
-            <Field label={`License Key ${isEditing ? SECRET_HINT_KEEP : '*'}`}>
+            <Field label={`License Key ${isEditing ? t('form.keepSecretHint') : '*'}`}>
               <textarea
                 value={form.licenseKey}
                 onChange={(e) => set({ licenseKey: e.target.value })}
@@ -715,10 +720,10 @@ export function AddEditItemModal() {
                 required={!isEditing}
               />
             </Field>
-            <Field label="Bound Email">
+            <Field label={t('form.boundEmail')}>
               <Input type="email" value={form.boundEmail} onChange={(e) => set({ boundEmail: e.target.value })} />
             </Field>
-            <Field label="Expiry Date">
+            <Field label={t('form.expiryDate')}>
               <Input
                 type="date"
                 value={form.expiryDate}
@@ -737,29 +742,29 @@ export function AddEditItemModal() {
           <>
             <div className="grid grid-cols-3 gap-2">
               <div className="col-span-2">
-                <Field label="SMTP Host *">
+                <Field label={t('form.smtpHost')}>
                   <Input value={form.host} onChange={(e) => set({ host: e.target.value })} required placeholder="smtp.example.com" />
                 </Field>
               </div>
-              <Field label="Port">
+              <Field label={t('detail.port')}>
                 <Input type="number" value={form.port} onChange={(e) => set({ port: e.target.value })} placeholder="587" />
               </Field>
             </div>
-            <Field label="Encryption">
+            <Field label={t('form.encryption')}>
               <select value={form.encryption} onChange={(e) => set({ encryption: e.target.value })} className={selectClass}>
-                <option value="">Select...</option>
+                <option value="">{t('common.select')}</option>
                 <option value="starttls">STARTTLS</option>
                 <option value="ssl">SSL/TLS</option>
                 <option value="none">None</option>
               </select>
             </Field>
-            <Field label="Username">
+            <Field label={t('form.username').replace(' *', '')}>
               <Input value={form.username} onChange={(e) => set({ username: e.target.value })} />
             </Field>
-            <Field label={`Password ${isEditing ? SECRET_HINT_KEEP : '*'}`}>
+            <Field label={`Password ${isEditing ? t('form.keepSecretHint') : '*'}`}>
               <Input type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} required={!isEditing} />
             </Field>
-            <Field label="From Address">
+            <Field label={t('form.fromAddress')}>
               <Input type="email" value={form.fromAddress} onChange={(e) => set({ fromAddress: e.target.value })} placeholder="noreply@example.com" />
             </Field>
           </>
@@ -768,7 +773,7 @@ export function AddEditItemModal() {
   };
 
   return (
-    <Dialog open={isOpen} onClose={handleClose} title={isEditing ? 'Edit Item' : 'Add Item'}>
+    <Dialog open={isOpen} onClose={handleClose} title={isEditing ? t('form.titleEdit') : t('form.titleAdd')}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {submitError && (
           <div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
@@ -776,11 +781,11 @@ export function AddEditItemModal() {
           </div>
         )}
         {!isEditing && (
-          <Field label="Type">
+          <Field label={t('form.type')}>
             <ItemTypeSelect value={currentType} onChange={setNewItemType} />
           </Field>
         )}
-        <Field label="Group">
+        <Field label={t('form.group')}>
           <select
             value={form.groupId}
             onChange={(e) => set({ groupId: e.target.value })}
@@ -789,25 +794,25 @@ export function AddEditItemModal() {
           >
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
-                {g.icon} {g.name}
+                {g.icon} {groupDisplayName(g, t)}
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Title *">
+        <Field label={t('form.title')}>
           <Input value={form.title} onChange={(e) => set({ title: e.target.value })} required />
         </Field>
         {renderFields()}
-        <Field label="Notes">
+        <Field label={t('form.notes')}>
           <textarea value={form.notes} onChange={(e) => set({ notes: e.target.value })} className={textAreaClass} rows={3} />
         </Field>
         {/* Sticky action bar: on short windows the form scrolls but Save must
             stay reachable without scrolling to the very bottom. */}
         <div className="sticky bottom-0 -mx-6 mt-2 flex justify-end gap-2 border-t border-gray-200 bg-white px-6 pb-1 pt-4 dark:border-gray-700 dark:bg-gray-800">
           <Button type="button" variant="outline" onClick={handleClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
-          <Button type="submit">{isEditing ? 'Save' : 'Add'}</Button>
+          <Button type="submit">{isEditing ? t('form.save') : t('form.addItem')}</Button>
         </div>
       </form>
     </Dialog>

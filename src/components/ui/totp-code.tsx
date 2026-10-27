@@ -2,12 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getTotpCode } from '@/lib/tauri';
+import { copySecret } from '@/lib/clipboard';
+import { useI18n } from '@/i18n';
 
 const PERIOD = 30;
 
 // 详情面板内的 TOTP 实时验证码 + 倒计时环。code 与倒计时都来自后端
 // （secret 只以密文落库），前端只负责定时轮询与渲染。
 export function TotpCode({ itemId, secret }: { itemId: string; secret?: string }) {
+  const { t } = useI18n();
   const [code, setCode] = useState<string | null>(null);
   const [remaining, setRemaining] = useState(PERIOD);
   const [error, setError] = useState<string | null>(null);
@@ -44,14 +47,14 @@ export function TotpCode({ itemId, secret }: { itemId: string; secret?: string }
 
   const copy = async () => {
     if (code) {
-      await navigator.clipboard.writeText(code).catch(() => {});
+      await copySecret(code).catch(() => undefined);
     }
   };
 
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">
-        两步验证码 (TOTP)
+        {t('totp.title')}
       </label>
       <div className="flex items-center gap-3">
         <span className="font-mono text-2xl font-semibold tracking-widest dark:text-gray-100">
@@ -75,14 +78,14 @@ export function TotpCode({ itemId, secret }: { itemId: string; secret?: string }
             {remaining}
           </span>
         </div>
-        <Button variant="ghost" size="sm" onClick={copy} title="复制验证码">
-          <span className="text-xs">复制</span>
+        <Button variant="ghost" size="sm" onClick={copy} title={t('totp.copyCode')}>
+          <span className="text-xs">{t('totp.copy')}</span>
         </Button>
-        <Button variant="ghost" size="sm" onClick={refresh} title="立即刷新">
+        <Button variant="ghost" size="sm" onClick={refresh} title={t('totp.refreshNow')}>
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
-      {error && <p className="mt-1 text-xs text-red-500">TOTP 错误: {error}</p>}
+      {error && <p className="mt-1 text-xs text-red-500">{t('totp.error', { error })}</p>}
     </div>
   );
 }

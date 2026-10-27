@@ -4,8 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Dialog } from '@/components/ui/dialog';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
+import { useI18n } from '@/i18n';
 
 export function AddGroupModal() {
+  const { t } = useI18n();
   const isOpen = useUIStore((s) => s.isAddGroupModalOpen);
   const close = useUIStore((s) => s.closeAddGroupModal);
   const createGroup = useVaultStore((s) => s.createGroup);
@@ -23,10 +25,10 @@ export function AddGroupModal() {
   const icons = ['📂', '🔒', '💼', '🏠', '💳', '📧', '🎮', '🛒'];
 
   return (
-    <Dialog open={isOpen} onClose={close} title="Add Group">
+    <Dialog open={isOpen} onClose={close} title={t('group.addTitle')}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">Name *</label>
+          <label className="mb-1 block text-sm font-medium">{t('group.nameLabel')}</label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -35,7 +37,7 @@ export function AddGroupModal() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Icon</label>
+          <label className="mb-1 block text-sm font-medium">{t('common.icon')}</label>
           <div className="flex gap-2">
             {icons.map((i) => (
               <button
@@ -51,9 +53,9 @@ export function AddGroupModal() {
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={close}>
-            Cancel
+            {t('common.cancel')}
           </Button>
-          <Button type="submit">Add</Button>
+          <Button type="submit">{t('common.add')}</Button>
         </div>
       </form>
     </Dialog>

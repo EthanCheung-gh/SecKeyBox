@@ -2,14 +2,22 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 type Theme = 'light' | 'dark' | 'system';
+export type Language = 'en' | 'zh';
+
+function detectLanguage(): Language {
+  if (typeof navigator === 'undefined') return 'en';
+  return navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+}
 
 interface SettingsState {
   theme: Theme;
+  language: Language;
   /** Idle minutes before the vault locks; 0 disables. Mirrors the Rust setting. */
   autoLockMinutes: number;
   /** Seconds before the clipboard is cleared after a copy; 0 keeps it. */
   clipboardClearSeconds: number;
   setTheme: (theme: Theme) => void;
+  setLanguage: (language: Language) => void;
   setAutoLockMinutes: (minutes: number) => void;
   setClipboardClearSeconds: (seconds: number) => void;
 }
@@ -34,6 +42,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       theme: 'system',
+      language: detectLanguage(),
       autoLockMinutes: 5,
       clipboardClearSeconds: 30,
       
@@ -41,6 +50,8 @@ export const useSettingsStore = create<SettingsState>()(
         set({ theme });
         applyTheme(theme);
       },
+
+      setLanguage: (language) => set({ language }),
 
       setAutoLockMinutes: (autoLockMinutes) => set({ autoLockMinutes }),
 

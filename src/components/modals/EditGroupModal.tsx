@@ -4,8 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Dialog } from '@/components/ui/dialog';
 import { useVaultStore } from '@/stores/vault';
 import { useUIStore } from '@/stores/ui';
+import { useI18n } from '@/i18n';
 
 export function EditGroupModal() {
+  const { t } = useI18n();
   const editingGroupId = useUIStore((s) => s.editingGroupId);
   const close = useUIStore((s) => s.closeEditGroupModal);
   const groups = useVaultStore((s) => s.groups);
@@ -33,10 +35,10 @@ export function EditGroupModal() {
   const icons = ['📂', '🔒', '💼', '🏠', '💳', '📧', '🎮', '🛒'];
 
   return (
-    <Dialog open={!!editingGroupId} onClose={close} title="Rename Group">
+    <Dialog open={!!editingGroupId} onClose={close} title={t('group.renameTitle')}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium">Name *</label>
+          <label className="mb-1 block text-sm font-medium">{t('group.nameLabel')}</label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -45,7 +47,7 @@ export function EditGroupModal() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Icon</label>
+          <label className="mb-1 block text-sm font-medium">{t('common.icon')}</label>
           <div className="flex gap-2">
             {icons.map((i) => (
               <button
@@ -61,9 +63,9 @@ export function EditGroupModal() {
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={close}>
-            Cancel
+            {t('common.cancel')}
           </Button>
-          <Button type="submit">Save</Button>
+          <Button type="submit">{t('common.save')}</Button>
         </div>
       </form>
     </Dialog>

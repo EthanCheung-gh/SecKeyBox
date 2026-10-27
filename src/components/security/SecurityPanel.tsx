@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { runSecurityAudit } from '@/lib/tauri';
 import { useVaultStore } from '@/stores/vault';
 import type { SecurityAudit as Audit } from '@/types';
+import { useI18n } from '@/i18n';
 
 const Section = ({
   title,
@@ -16,6 +17,7 @@ const Section = ({
   findings: { item_id: string; title: string; detail: string }[];
   onJump: (id: string) => void;
 }) => {
+  const { t } = useI18n();
   if (findings.length === 0) return null;
   const color =
     tone === 'bad'
@@ -34,7 +36,7 @@ const Section = ({
               {f.title} — <span className="text-gray-500 dark:text-gray-400">{f.detail}</span>
             </span>
             <button onClick={() => onJump(f.item_id)} className="text-primary-600 hover:underline dark:text-primary-400">
-              查看
+              {t('security.view')}
             </button>
           </li>
         ))}
@@ -44,6 +46,7 @@ const Section = ({
 };
 
 export function SecurityPanel({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
   const [audit, setAudit] = useState<Audit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,11 +89,11 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
           ) : (
             <ShieldCheck className="h-5 w-5 text-green-500" />
           )}
-          <h2 className="text-lg font-semibold dark:text-gray-100">安全体检</h2>
+          <h2 className="text-lg font-semibold dark:text-gray-100">{t('security.title')}</h2>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={run}>
-            重新体检
+            {t('security.retry')}
           </Button>
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
@@ -98,25 +101,25 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      {loading && <p className="text-sm text-gray-500">分析中…</p>}
+      {loading && <p className="text-sm text-gray-500">{t('security.analyzing')}</p>}
       {error && <p className="text-sm text-red-500">{error}</p>}
 
       {audit && !loading && (
         <div className="flex-1 space-y-3 overflow-y-auto">
           {total === 0 && (
             <p className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-700 dark:border-green-900 dark:bg-green-900/20 dark:text-green-400">
-              未发现风险：密码强度达标、无重复密钥、2FA 覆盖率良好、无临期许可证。
+              {t('security.noRisks')}
             </p>
           )}
-          <Section title="弱密码" tone="bad" findings={audit.weak_passwords} onJump={jump} />
-          <Section title="缺少两步验证的账号" tone="warn" findings={audit.missing_2fa} onJump={jump} />
-          <Section title="长期未轮换的 API Key" tone="warn" findings={audit.stale_rotations} onJump={jump} />
-          <Section title="即将过期的许可证" tone="warn" findings={audit.expiring_licenses} onJump={jump} />
+          <Section title={t('security.weakPasswords')} tone="bad" findings={audit.weak_passwords} onJump={jump} />
+          <Section title={t('security.missing2fa')} tone="warn" findings={audit.missing_2fa} onJump={jump} />
+          <Section title={t('security.staleApiKeys')} tone="warn" findings={audit.stale_rotations} onJump={jump} />
+          <Section title={t('security.expiringLicenses')} tone="warn" findings={audit.expiring_licenses} onJump={jump} />
           {audit.reused_secrets.map((g, i) => (
             <div key={i} className="rounded-md border border-orange-200 bg-orange-50 p-3 dark:border-orange-900 dark:bg-orange-900/20">
               <h3 className="mb-2 text-sm font-medium">
-                重复使用的密钥 <span className="font-mono">{g.secret_hint}</span>
-                <span className="ml-1 text-xs text-gray-500">({g.items.length} 处)</span>
+                {t('security.reusedSecrets')} <span className="font-mono">{g.secret_hint}</span>
+                <span className="ml-1 text-xs text-gray-500">({g.items.length})</span>
               </h3>
               <ul className="space-y-1">
                 {g.items.map((f, j) => (
@@ -125,7 +128,7 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
                       {f.title} — <span className="text-gray-500">{f.detail}</span>
                     </span>
                     <button onClick={() => jump(f.item_id)} className="text-primary-600 hover:underline dark:text-primary-400">
-                      查看
+                      {t('security.view')}
                     </button>
                   </li>
                 ))}

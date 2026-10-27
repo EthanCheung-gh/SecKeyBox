@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog } from '@/components/ui/dialog';
 import { decodeQrFromImageFile, parseOtpauthUri, type OtpauthResult } from '@/lib/otpauth';
+import { useI18n } from '@/i18n';
 
 interface TotpImportProps {
   onImport: (result: OtpauthResult) => void;
@@ -14,6 +15,7 @@ interface TotpImportProps {
  * Both paths land in the same parser, and the caller fills the secret field.
  */
 export function TotpImport({ onImport }: TotpImportProps) {
+  const { t } = useI18n();
   const [isPasteOpen, setIsPasteOpen] = useState(false);
   const [uri, setUri] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,11 +23,11 @@ export function TotpImport({ onImport }: TotpImportProps) {
 
   const apply = (result: OtpauthResult) => {
     if (result.digits !== undefined && result.digits !== 6) {
-      setError(`Only 6-digit TOTP is supported; this entry uses ${result.digits} digits`);
+      setError(t('totp.onlySixDigits', { digits: result.digits }));
       return;
     }
     if (result.period !== undefined && result.period !== 30) {
-      setError(`Only 30-second TOTP is supported; this entry uses ${result.period}s`);
+      setError(t('totp.onlyThirtySeconds', { period: result.period }));
       return;
     }
     onImport(result);
@@ -58,10 +60,10 @@ export function TotpImport({ onImport }: TotpImportProps) {
     <div className="mt-1">
       <div className="flex gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => setIsPasteOpen(true)}>
-          <ClipboardPaste className="mr-1 h-3.5 w-3.5" /> Paste URI
+          <ClipboardPaste className="mr-1 h-3.5 w-3.5" /> {t('totp.pasteUri')}
         </Button>
         <Button type="button" variant="outline" size="sm" onClick={() => imageInputRef.current?.click()}>
-          <QrCode className="mr-1 h-3.5 w-3.5" /> Scan image
+          <QrCode className="mr-1 h-3.5 w-3.5" /> {t('totp.scanImage')}
         </Button>
         <input
           ref={imageInputRef}
@@ -79,10 +81,10 @@ export function TotpImport({ onImport }: TotpImportProps) {
         </p>
       )}
 
-      <Dialog open={isPasteOpen} onClose={() => setIsPasteOpen(false)} title="Import TOTP URI">
+      <Dialog open={isPasteOpen} onClose={() => setIsPasteOpen(false)} title={t('totp.importTitle')}>
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium">otpauth:// URI or base32 secret</label>
+            <label className="mb-1 block text-sm font-medium">{t('totp.uriLabel')}</label>
             <Input
               value={uri}
               onChange={(e) => setUri(e.target.value)}
@@ -102,9 +104,9 @@ export function TotpImport({ onImport }: TotpImportProps) {
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIsPasteOpen(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
-            <Button onClick={handlePaste}>Import</Button>
+            <Button onClick={handlePaste}>{t('totp.import')}</Button>
           </div>
         </div>
       </Dialog>

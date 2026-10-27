@@ -8,9 +8,11 @@ import { maskKeyValue, formatRotationDate, formatExpiryDate } from '@/lib/utils'
 import { TotpCode } from '@/components/ui/totp-code';
 import { SecretHistoryList } from '@/components/ui/secret-history-list';
 import { AttachmentList } from '@/components/ui/attachment-list';
+import { useI18n } from '@/i18n';
 import type { AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail } from '@/types';
 
 export function DetailPanel() {
+  const { t } = useI18n();
   const selectedItem = useVaultStore((s) => s.selectedItem);
   const toggleItemFavorite = useVaultStore((s) => s.toggleItemFavorite);
   const openEditItemModal = useUIStore((s) => s.openEditItemModal);
@@ -22,7 +24,7 @@ export function DetailPanel() {
   if (!selectedItem) {
     return (
       <div className="flex h-full flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <p className="text-gray-400 dark:text-gray-500">Select an item to view details</p>
+        <p className="text-gray-400 dark:text-gray-500">{t('detail.selectItem')}</p>
       </div>
     );
   }
@@ -36,7 +38,7 @@ export function DetailPanel() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Username</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.username')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium dark:text-gray-100">{item.username}</span>
             <Button variant="ghost" size="sm" onClick={() => handleCopy(item.username)}>
@@ -46,7 +48,7 @@ export function DetailPanel() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Password</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.password')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium dark:text-gray-100">
               {showPassword ? item.password : '••••••••'}
@@ -62,7 +64,7 @@ export function DetailPanel() {
 
         {item.website && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Website</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.website')}</label>
             <a
               href={item.website}
               target="_blank"
@@ -76,7 +78,7 @@ export function DetailPanel() {
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -91,7 +93,7 @@ export function DetailPanel() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Key Name</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.keyName')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium dark:text-gray-100">{item.key_name}</span>
             <Button variant="ghost" size="sm" onClick={() => handleCopy(item.key_name)}>
@@ -101,7 +103,7 @@ export function DetailPanel() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Key Value</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.keyValue')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium font-mono text-sm dark:text-gray-100">
               {showKeyValue ? item.key_value : maskKeyValue(item.key_value)}
@@ -117,7 +119,7 @@ export function DetailPanel() {
 
         {item.endpoint && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Endpoint</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.endpoint')}</label>
             <div className="flex items-center gap-2">
               <a
                 href={item.endpoint}
@@ -136,7 +138,7 @@ export function DetailPanel() {
 
         {item.auth_method && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Auth Method</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.authMethod')}</label>
             <div className="flex items-center gap-2">
               <span className="font-medium capitalize dark:text-gray-100">{item.auth_method.replace('_', ' ')}</span>
               <Button variant="ghost" size="sm" onClick={() => handleCopy(item.auth_method!)}>
@@ -147,13 +149,13 @@ export function DetailPanel() {
         )}
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Last Rotated</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.lastRotated')}</label>
           <span className="text-gray-700 dark:text-gray-300">{formatRotationDate(item.rotation_date)}</span>
         </div>
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -200,7 +202,7 @@ export function DetailPanel() {
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -244,14 +246,14 @@ export function DetailPanel() {
     const item = selectedItem as DatabaseItemDetail;
     return (
       <div className="space-y-4">
-        {renderField('Database Type', item.db_type)}
-        {renderField('Host', item.port ? `${item.host}:${item.port}` : item.host, true)}
-        {renderField('Database', item.database_name ?? '', true)}
-        {renderField('Username', item.username ?? '')}
-        {renderSecretField('Password', item.password, showPassword, () => setShowPassword(!showPassword))}
+        {renderField(t('detail.dbType'), item.db_type)}
+        {renderField(t('detail.host'), item.port ? `${item.host}:${item.port}` : item.host, true)}
+        {renderField(t('detail.databaseName'), item.database_name ?? '', true)}
+        {renderField(t('detail.username'), item.username ?? '')}
+        {renderSecretField(t('detail.password'), item.password, showPassword, () => setShowPassword(!showPassword))}
         {item.connection_url && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Connection URL</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.connectionUrl')}</label>
             <div className="flex items-center gap-2">
               <span className="break-all font-mono text-sm dark:text-gray-100">{item.connection_url}</span>
               <Button variant="ghost" size="sm" onClick={() => handleCopy(item.connection_url!)}>
@@ -262,7 +264,7 @@ export function DetailPanel() {
         )}
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -274,14 +276,14 @@ export function DetailPanel() {
     const item = selectedItem as SshItemDetail;
     return (
       <div className="space-y-4">
-        {renderField('Host', item.port ? `${item.host}:${item.port}` : item.host, true)}
-        {renderField('Username', item.username)}
-        {renderSecretField('Password', item.password, showPassword, () => setShowPassword(!showPassword))}
-        {item.key_path && renderField('Private Key Path', item.key_path, true)}
-        {renderSecretField('Key Passphrase', item.passphrase, showKeyValue, () => setShowKeyValue(!showKeyValue))}
+        {renderField(t('detail.host'), item.port ? `${item.host}:${item.port}` : item.host, true)}
+        {renderField(t('detail.username'), item.username)}
+        {renderSecretField(t('detail.password'), item.password, showPassword, () => setShowPassword(!showPassword))}
+        {item.key_path && renderField(t('detail.keyPath'), item.key_path, true)}
+        {renderSecretField(t('detail.keyPassphrase'), item.passphrase, showKeyValue, () => setShowKeyValue(!showKeyValue))}
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -293,13 +295,13 @@ export function DetailPanel() {
     const item = selectedItem as CloudItemDetail;
     return (
       <div className="space-y-4">
-        {renderField('Provider', item.provider)}
-        {renderField('Access Key ID', item.access_key_id, true)}
-        {renderSecretField('Secret', item.secret, showKeyValue, () => setShowKeyValue(!showKeyValue), item.secret.slice(-4))}
-        {item.region && renderField('Region', item.region)}
+        {renderField(t('detail.provider'), item.provider)}
+        {renderField(t('detail.accessKeyId'), item.access_key_id, true)}
+        {renderSecretField(t('detail.secret'), item.secret, showKeyValue, () => setShowKeyValue(!showKeyValue), item.secret.slice(-4))}
+        {item.region && renderField(t('detail.region'), item.region)}
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -311,16 +313,16 @@ export function DetailPanel() {
     const item = selectedItem as LicenseItemDetail;
     return (
       <div className="space-y-4">
-        {renderField('Software', item.software_name)}
-        {renderSecretField('License Key', item.license_key, showKeyValue, () => setShowKeyValue(!showKeyValue))}
-        {item.bound_email && renderField('Bound Email', item.bound_email)}
+        {renderField(t('detail.software'), item.software_name)}
+        {renderSecretField(t('detail.licenseKey'), item.license_key, showKeyValue, () => setShowKeyValue(!showKeyValue))}
+        {item.bound_email && renderField(t('detail.boundEmail'), item.bound_email)}
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Expiry Date</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.expiryDate')}</label>
           <span className="text-gray-700 dark:text-gray-300">{formatExpiryDate(item.expiry_date)}</span>
         </div>
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -332,14 +334,14 @@ export function DetailPanel() {
     const item = selectedItem as SmtpItemDetail;
     return (
       <div className="space-y-4">
-        {renderField('Host', item.port ? `${item.host}:${item.port}` : item.host, true)}
-        {item.encryption && renderField('Encryption', item.encryption.toUpperCase())}
-        {renderField('Username', item.username ?? '')}
-        {renderSecretField('Password', item.password, showPassword, () => setShowPassword(!showPassword))}
-        {item.from_address && renderField('From Address', item.from_address)}
+        {renderField(t('detail.host'), item.port ? `${item.host}:${item.port}` : item.host, true)}
+        {item.encryption && renderField(t('detail.encryption'), item.encryption.toUpperCase())}
+        {renderField(t('detail.username'), item.username ?? '')}
+        {renderSecretField(t('detail.password'), item.password, showPassword, () => setShowPassword(!showPassword))}
+        {item.from_address && renderField(t('detail.fromAddress'), item.from_address)}
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">Notes</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -375,7 +377,7 @@ export function DetailPanel() {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold dark:text-gray-100">{selectedItem.title}</h1>
-          <span className="text-sm text-gray-500 capitalize dark:text-gray-400">{selectedItem.type.replace('_', ' ')}</span>
+          <span className="text-sm text-gray-500 capitalize dark:text-gray-400">{t(`type.${selectedItem.type}`)}</span>
         </div>
         <div className="flex gap-2">
           <Button

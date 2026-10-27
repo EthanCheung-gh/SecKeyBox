@@ -1,10 +1,12 @@
 import { calculatePasswordStrength } from '@/lib/password-strength';
+import { useI18n } from '@/i18n';
 
 interface PasswordStrengthProps {
   password: string;
 }
 
 export function PasswordStrength({ password }: PasswordStrengthProps) {
+  const { t } = useI18n();
   const result = calculatePasswordStrength(password);
 
   if (!password) return null;
@@ -12,7 +14,7 @@ export function PasswordStrength({ password }: PasswordStrengthProps) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-gray-500 dark:text-gray-400">Password strength</span>
+        <span className="text-gray-500 dark:text-gray-400">{t('passwordStrength.label')}</span>
         <span className={`font-medium ${
           result.level === 'weak' ? 'text-red-500' :
           result.level === 'fair' ? 'text-orange-500' :

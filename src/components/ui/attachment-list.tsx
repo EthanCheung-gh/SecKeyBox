@@ -7,6 +7,7 @@ import {
   listAttachments,
   saveAttachmentToPath,
 } from '@/lib/tauri';
+import { useI18n } from '@/i18n';
 import type { AttachmentMeta } from '@/types';
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -36,6 +37,7 @@ function readFileAsBase64(file: File): Promise<string> {
  * them with the vault key; nothing unencrypted touches the database.
  */
 export function AttachmentList({ itemId }: { itemId: string }) {
+  const { t } = useI18n();
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +63,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
     try {
       for (const file of Array.from(files)) {
         if (file.size > MAX_BYTES) {
-          setError(`${file.name} exceeds the 5 MB limit and was skipped`);
+          setError(t('attachments.tooLarge', { name: file.name }));
           continue;
         }
         const data = await readFileAsBase64(file);
@@ -88,7 +90,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
   };
 
   const handleDelete = async (meta: AttachmentMeta) => {
-    if (!window.confirm(`Delete attachment "${meta.filename}"?`)) return;
+    if (!window.confirm(t('attachments.deleteConfirm', { name: meta.filename }))) return;
     try {
       await deleteAttachment(itemId, meta.id);
       await reload();
@@ -101,7 +103,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
     <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
       <div className="mb-2 flex items-center justify-between">
         <label className="flex items-center gap-1 text-sm font-medium text-gray-500 dark:text-gray-400">
-          <Paperclip className="h-4 w-4" /> Attachments
+          <Paperclip className="h-4 w-4" /> {t('attachments.title')}
         </label>
         <Button
           variant="outline"
@@ -109,7 +111,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
           disabled={busy}
           onClick={() => inputRef.current?.click()}
         >
-          {busy ? 'Adding...' : 'Add file'}
+          {busy ? t('attachments.adding') : t('attachments.addFile')}
         </Button>
         <input
           ref={inputRef}
@@ -124,7 +126,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
 
       {attachments.length === 0 ? (
         <p className="text-xs text-gray-400 dark:text-gray-500">
-          No attachments. Private keys and certificates are encrypted with the vault key.
+          {t('attachments.empty')}
         </p>
       ) : (
         <ul className="space-y-1">
