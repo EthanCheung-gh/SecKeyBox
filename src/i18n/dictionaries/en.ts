@@ -365,6 +365,19 @@ export const en: Record<string, string> = {
   'tags.deleteConfirm': 'Delete tag "{name}"? It will be removed from all items.',
   'tags.filterHint': 'Filtering by tag',
 
+  // backups
+  'backup.title': 'Local backups',
+  'backup.hint': 'Consistent snapshots of the encrypted vault, one per day, ten most recent kept.',
+  'backup.create': 'Back up now',
+  'backup.creating': 'Backing up...',
+  'backup.empty': 'No backups yet.',
+  'backup.restore': 'Restore',
+  'backup.delete': 'Delete',
+  'backup.restoreConfirm': 'Restore the snapshot from {time}? The current vault will be snapshotted first, then replaced. You will need to unlock again.',
+  'backup.restored': 'Snapshot restored. Unlock the vault with the master password that was active at that time.',
+  'backup.deleted': 'Backup deleted.',
+  'backup.error': 'Backup operation failed: {message}',
+
   // generic errors
   'error.unknown': 'Something went wrong',
 };

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag, BackupInfo } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -312,4 +312,22 @@ export async function setItemTags(itemId: string, tagIds: string[]): Promise<voi
 
 export async function getItemsByTag(tagId: string): Promise<ItemSummary[]> {
   return invoke<ItemSummary[]>('get_items_by_tag_cmd', { tagId });
+}
+
+// --- Local backups ---
+
+export async function createBackup(): Promise<BackupInfo> {
+  return invoke<BackupInfo>('create_backup');
+}
+
+export async function listBackups(): Promise<BackupInfo[]> {
+  return invoke<BackupInfo[]>('list_backups');
+}
+
+export async function deleteBackup(file: string): Promise<void> {
+  return invoke<void>('delete_backup', { file });
+}
+
+export async function restoreBackup(file: string): Promise<void> {
+  return invoke<void>('restore_backup', { file });
 }

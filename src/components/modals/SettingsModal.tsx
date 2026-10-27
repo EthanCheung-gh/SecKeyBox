@@ -1,10 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { Settings, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { useSettingsStore, type Language } from '@/stores/settings';
-import { setAutoLockMinutes as persistAutoLockMinutes } from '@/lib/tauri';
+import {
+  setAutoLockMinutes as persistAutoLockMinutes,
+  createBackup,
+  listBackups,
+  deleteBackup,
+  restoreBackup,
+} from '@/lib/tauri';
+import { useVaultStore } from '@/stores/vault';
+import type { BackupInfo } from '@/types';
 import { useI18n } from '@/i18n';
 import { checkForUpdate, installUpdate, restartApp } from '@/lib/updater';
 
@@ -68,6 +76,71 @@ export function SettingsModal() {
     { value: 60, label: t('settings.seconds', { count: 60 }) },
     { value: 0, label: t('settings.neverClear') },
   ];
+
+  // --- backups ---
+  const [backups, setBackups] = useState<BackupInfo[]>([]);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupNotice, setBackupNotice] = useState<string | null>(null);
+
+  const refreshBackups = async () => {
+    try {
+      setBackups(await listBackups());
+    } catch {
+      setBackups([]);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      void refreshBackups();
+      setBackupNotice(null);
+    }
+  }, [isOpen]);
+
+  const formatSize = (bytes: number) =>
+    bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`;
+
+  const handleCreateBackup = async () => {
+    setBackupBusy(true);
+    setBackupNotice(null);
+    try {
+      await createBackup();
+      await refreshBackups();
+    } catch (e) {
+      setBackupNotice(t('backup.error', { message: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleRestore = async (backup: BackupInfo) => {
+    const time = new Date(backup.created_at * 1000).toLocaleString();
+    if (!window.confirm(t('backup.restoreConfirm', { time }))) return;
+    setBackupBusy(true);
+    setBackupNotice(null);
+    try {
+      await restoreBackup(backup.file);
+      setBackupNotice(t('backup.restored'));
+      await useVaultStore.getState().lock();
+      setIsOpen(false);
+    } catch (e) {
+      setBackupNotice(t('backup.error', { message: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleDeleteBackup = async (backup: BackupInfo) => {
+    setBackupBusy(true);
+    try {
+      await deleteBackup(backup.file);
+      await refreshBackups();
+    } catch (e) {
+      setBackupNotice(t('backup.error', { message: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setBackupBusy(false);
+    }
+  };
 
   const handleAutoLockChange = async (minutes: number) => {
     const previous = autoLockMinutes;
@@ -147,6 +220,56 @@ export function SettingsModal() {
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('settings.clipboardHint')}
             </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">{t('backup.title')}</label>
+            <div className="space-y-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('backup.hint')}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={backupBusy}
+                onClick={() => void handleCreateBackup()}
+              >
+                {backupBusy ? t('backup.creating') : t('backup.create')}
+              </Button>
+              {backupNotice && (
+                <p className="text-xs text-primary-600 dark:text-primary-400">{backupNotice}</p>
+              )}
+              {backups.length === 0 ? (
+                <p className="text-xs text-gray-400">{t('backup.empty')}</p>
+              ) : (
+                <ul className="space-y-1">
+                  {backups.map((backup) => (
+                    <li key={backup.file} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate dark:text-gray-300">
+                        {new Date(backup.created_at * 1000).toLocaleString()}
+                        <span className="ml-2 text-gray-400">{formatSize(backup.size)}</span>
+                      </span>
+                      <span className="flex shrink-0 gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={backupBusy}
+                          onClick={() => void handleRestore(backup)}
+                        >
+                          {t('backup.restore')}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={backupBusy}
+                          onClick={() => void handleDeleteBackup(backup)}
+                        >
+                          {t('backup.delete')}
+                        </Button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           <div>

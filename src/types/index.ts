@@ -293,6 +293,13 @@ export interface AttachmentMeta {
   created_at: number;
 }
 
+/** One local snapshot of the encrypted database. */
+export interface BackupInfo {
+  file: string;
+  created_at: number;
+  size: number;
+}
+
 /** Per-item extra field (value encrypted at rest). */
 export interface CustomField {
   id: string;

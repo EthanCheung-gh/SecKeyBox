@@ -9,6 +9,7 @@ mod import_tools;
 mod security;
 mod attachments;
 mod metadata;
+mod backup;
 
 pub use vault::*;
 pub use groups::*;
@@ -22,3 +23,4 @@ pub use import_tools::*;
 pub use security::*;
 pub use attachments::*;
 pub use metadata::*;
+pub use backup::*;

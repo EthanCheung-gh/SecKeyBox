@@ -365,6 +365,19 @@ export const zh: Record<string, string> = {
   'tags.deleteConfirm': '删除标签「{name}」？它会从所有条目上移除。',
   'tags.filterHint': '按标签筛选',
 
+  // backups
+  'backup.title': '本地备份',
+  'backup.hint': '加密数据库的一致性快照，每天一份，保留最近 10 份。',
+  'backup.create': '立即备份',
+  'backup.creating': '备份中…',
+  'backup.empty': '暂无备份。',
+  'backup.restore': '恢复',
+  'backup.delete': '删除',
+  'backup.restoreConfirm': '恢复 {time} 的快照？当前保险库会先自动快照，然后被替换。恢复后需要重新解锁。',
+  'backup.restored': '快照已恢复。请使用该时间点生效的主密码解锁。',
+  'backup.deleted': '备份已删除。',
+  'backup.error': '备份操作失败：{message}',
+
   // generic errors
   'error.unknown': '出错了',
 };

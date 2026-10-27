@@ -90,6 +90,8 @@ type MockState = {
   /** 标签与条目关联 */
   tags: { id: string; name: string; color?: string | null; created_at: number }[];
   itemTags: Map<string, string[]>;
+  /** 模拟的本地备份列表 */
+  backups: { file: string; created_at: number; size: number }[];
 };
 
 type MockAttachment = {
@@ -115,6 +117,7 @@ const state: MockState = {
   customFields: new Map(),
   tags: [],
   itemTags: new Map(),
+  backups: [],
 };
 
 // ---------- utils ----------
@@ -1574,6 +1577,34 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
         .map(([itemId]) => itemId),
     );
     return state.items.filter((item) => ids.has(item.id)).map(toSummary);
+  },
+
+  // --- backups（浏览器调试：仅维护列表，不做真实快照） ---
+
+  create_backup: () => {
+    requireUnlocked();
+    const created_at = now();
+    const backup = {
+      file: `vault-${created_at}.db`,
+      created_at,
+      size: 4096,
+    };
+    state.backups.unshift(backup);
+    state.backups = state.backups.slice(0, 10);
+    return { ...backup };
+  },
+
+  list_backups: () => [...state.backups],
+
+  delete_backup: (a) => {
+    const file = str(a, 'file');
+    state.backups = state.backups.filter((backup) => backup.file !== file);
+    return null;
+  },
+
+  restore_backup: () => {
+    requireUnlocked();
+    return null;
   },
 
   search_items: (a) => {

@@ -187,6 +187,10 @@ pub fn run() {
             get_item_tags,
             set_item_tags_cmd,
             get_items_by_tag_cmd,
+            create_backup,
+            list_backups,
+            delete_backup,
+            restore_backup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

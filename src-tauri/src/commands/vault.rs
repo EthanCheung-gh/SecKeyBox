@@ -96,6 +96,7 @@ pub fn initialize_vault(
 
 #[tauri::command]
 pub fn unlock_vault(
+    app_handle: tauri::AppHandle,
     db: State<DbConnection>,
     vault_state: State<VaultState>,
     master_password: String,
@@ -163,6 +164,8 @@ pub fn unlock_vault(
     let secure_key = SecureKey::new(derived.key);
     vault_state.unlock(secure_key);
     log_event(&conn, "vault.unlock", None, None, None);
+    // One snapshot per day, produced after the vault is readable.
+    crate::commands::backup::ensure_daily_backup(&app_handle, &conn);
 
     eprintln!("[DEBUG] unlock_vault: success");
     Ok(true)
