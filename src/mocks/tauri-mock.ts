@@ -1755,6 +1755,21 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     return null;
   },
 
+  // 浏览器调试：mock 的“密文”就是明文，没有可损坏的东西，
+  // 因此总是返回健康报告（结构检查同样视为通过）。
+  check_vault_integrity: (a) => {
+    requireUnlocked();
+    return {
+      checked_fields: 0,
+      failures: [],
+      sqlite_integrity: 'ok',
+      foreign_key_violations: [],
+      checked_attachments: Boolean(a.include_attachments ?? a.includeAttachments),
+      checked_at: now(),
+      duration_ms: 0,
+    };
+  },
+
   search_items: (a) => {
     // 锁定态语义与后端一致：返回空列表而非错误；
     // 调用方需用自身解锁状态区分「已锁定」与「无搜索结果」。

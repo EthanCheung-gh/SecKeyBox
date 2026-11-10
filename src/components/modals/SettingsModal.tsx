@@ -12,11 +12,13 @@ import {
   listBackups,
   deleteBackup,
   restoreBackup,
+  checkVaultIntegrity,
 } from '@/lib/tauri';
 import { useVaultStore } from '@/stores/vault';
-import type { BackupInfo } from '@/types';
+import type { BackupInfo, IntegrityReport } from '@/types';
 import { useI18n } from '@/i18n';
 import { checkForUpdate, installUpdate, restartApp } from '@/lib/updater';
+import { IntegrityReportView } from '@/components/security/IntegrityReportView';
 
 const selectClass =
   'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100';
@@ -163,6 +165,29 @@ export function SettingsModal() {
       setBackupNotice(t('backup.error', { message: e instanceof Error ? e.message : String(e) }));
     } finally {
       setBackupBusy(false);
+    }
+  };
+
+  // --- integrity self-check (its own state: a failure here must not look like
+  // a settings-save failure) ---
+  const [includeAttachments, setIncludeAttachments] = useState(false);
+  const [integrityState, setIntegrityState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'checking' }
+    | { kind: 'done'; report: IntegrityReport }
+    | { kind: 'error'; message: string }
+  >({ kind: 'idle' });
+
+  const handleCheckIntegrity = async () => {
+    setIntegrityState({ kind: 'checking' });
+    try {
+      const report = await checkVaultIntegrity(includeAttachments);
+      setIntegrityState({ kind: 'done', report });
+    } catch (e) {
+      setIntegrityState({
+        kind: 'error',
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -322,6 +347,37 @@ export function SettingsModal() {
                     </li>
                   ))}
                 </ul>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">{t('integrity.title')}</label>
+            <div className="space-y-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('integrity.hint')}</p>
+              <label className="flex items-center gap-2 text-xs dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5"
+                  checked={includeAttachments}
+                  disabled={integrityState.kind === 'checking'}
+                  onChange={(e) => setIncludeAttachments(e.target.checked)}
+                />
+                {t('integrity.includeAttachments')}
+              </label>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={integrityState.kind === 'checking'}
+                onClick={() => void handleCheckIntegrity()}
+              >
+                {integrityState.kind === 'checking' ? t('integrity.checking') : t('integrity.check')}
+              </Button>
+              {integrityState.kind === 'done' && <IntegrityReportView report={integrityState.report} />}
+              {integrityState.kind === 'error' && (
+                <p className="text-xs text-red-500">
+                  {t('integrity.error', { message: integrityState.message })}
+                </p>
               )}
             </div>
           </div>

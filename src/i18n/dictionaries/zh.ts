@@ -403,6 +403,22 @@ export const zh: Record<string, string> = {
   'backup.deleted': '备份已删除。',
   'backup.error': '备份操作失败：{message}',
 
+  // integrity self-check
+  'integrity.title': '完整性检查',
+  'integrity.hint': '逐条解密已存密钥以发现损坏。恢复备份后，或条目打不开时运行。',
+  'integrity.includeAttachments': '包含附件内容（较慢）',
+  'integrity.check': '立即检查',
+  'integrity.checking': '检查中...',
+  'integrity.ok': '{count} 个加密字段全部解密成功。',
+  'integrity.failed': '{count} 个字段无法解密。',
+  'integrity.structureIssues': '没有解密失败，但 SQLite 报告了结构问题。',
+  'integrity.checkedFields': '已检查字段：{count}',
+  'integrity.sqlite': 'SQLite 结构：{status}',
+  'integrity.foreignKeys': '外键异常：{count}',
+  'integrity.duration': '耗时 {ms} 毫秒',
+  'integrity.restoreHint': '若失败持续存在，请从上方备份区恢复最近的本地备份。',
+  'integrity.error': '完整性检查失败：{message}',
+
   // generic errors
   'error.unknown': '出错了',
 };

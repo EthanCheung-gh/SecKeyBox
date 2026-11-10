@@ -403,6 +403,22 @@ export const en: Record<string, string> = {
   'backup.deleted': 'Backup deleted.',
   'backup.error': 'Backup operation failed: {message}',
 
+  // integrity self-check
+  'integrity.title': 'Integrity check',
+  'integrity.hint': 'Decrypt every stored secret to detect corruption. Run it after a restore, or when an item fails to open.',
+  'integrity.includeAttachments': 'Include attachment contents (slower)',
+  'integrity.check': 'Check now',
+  'integrity.checking': 'Checking...',
+  'integrity.ok': 'All {count} encrypted fields decrypted successfully.',
+  'integrity.failed': '{count} field(s) could not be decrypted.',
+  'integrity.structureIssues': 'No decryption failures, but SQLite reported structural issues.',
+  'integrity.checkedFields': 'Checked fields: {count}',
+  'integrity.sqlite': 'SQLite structure: {status}',
+  'integrity.foreignKeys': 'Foreign key violations: {count}',
+  'integrity.duration': 'Finished in {ms} ms',
+  'integrity.restoreHint': 'If failures persist, restore the latest local backup from the section above.',
+  'integrity.error': 'Integrity check failed: {message}',
+
   // generic errors
   'error.unknown': 'Something went wrong',
 };

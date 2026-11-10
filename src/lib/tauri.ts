@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag, BackupInfo, TrashItemSummary } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag, BackupInfo, TrashItemSummary, IntegrityReport } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -191,6 +191,14 @@ export async function getTotpCode(id: string): Promise<TotpCode> {
 
 export async function runSecurityAudit(): Promise<SecurityAudit> {
   return invoke<SecurityAudit>('security_audit');
+}
+
+/**
+ * Decrypt every stored field (attachments opt-in) and run SQLite's structural
+ * checks. Slow on large vaults, so it is only triggered from Settings.
+ */
+export async function checkVaultIntegrity(includeAttachments: boolean): Promise<IntegrityReport> {
+  return invoke<IntegrityReport>('check_vault_integrity', { includeAttachments });
 }
 
 export async function importCsv(data: string, groupId: string): Promise<ImportToolsResult> {

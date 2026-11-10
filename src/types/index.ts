@@ -347,3 +347,30 @@ export interface AttachmentData {
   content_type?: string | null;
   data_base64: string;
 }
+
+/**
+ * One encrypted value that could not be decrypted. The backend only sends
+ * metadata: no plaintext and no ciphertext ever reaches the UI.
+ */
+export interface IntegrityFailure {
+  item_id: string;
+  item_title: string;
+  item_type: string;
+  /** account | api_key | ... | custom_field | secret_history | attachment */
+  scope: string;
+  field: string;
+  reason: string;
+}
+
+/** Result of the vault integrity self-check (`check_vault_integrity`). */
+export interface IntegrityReport {
+  /** Number of non-NULL ciphertexts that were decryption attempts. */
+  checked_fields: number;
+  failures: IntegrityFailure[];
+  /** `"ok"` or the joined messages of SQLite's `PRAGMA integrity_check`. */
+  sqlite_integrity: string;
+  foreign_key_violations: string[];
+  checked_attachments: boolean;
+  checked_at: number;
+  duration_ms: number;
+}
