@@ -13,7 +13,7 @@ pub use db::{
     Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, EnvVarPair, ItemDetail,
     DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail,
     DbConnection, open_connection, get_db_path, AttachmentMeta, CustomField, Tag,
-    TrashItemSummary,
+    TrashItemSummary, DuplicateCandidate, DuplicateGroup, MergeReport,
 };
 
 /// Show, restore and focus the main window (tray click, menu item).
@@ -247,6 +247,8 @@ pub fn run() {
             purge_item,
             empty_trash,
             set_trash_retention_days,
+            find_duplicates,
+            archive_duplicates,
             create_backup,
             list_backups,
             delete_backup,

@@ -1372,3 +1372,481 @@ fn integrity_check_reports_foreign_key_violations_without_failing() {
     assert_eq!(report.sqlite_integrity, "ok");
 }
 
+
+// ---------- duplicate detection & archive ----------
+
+#[test]
+fn duplicate_detection_groups_accounts_by_username_and_website_host() {
+    let conn = seeded_conn();
+    let key = derive_key("dup-detect-password", None).unwrap().key;
+
+    let first = create_account_item(
+        &conn,
+        "built-in-accounts",
+        "GitHub work",
+        "Alice",
+        "pw-1",
+        Some("https://github.com/a"),
+        None,
+        None,
+        &key,
+    )
+    .unwrap();
+    let second = create_account_item(
+        &conn,
+        "built-in-accounts",
+        "GitHub",
+        " alice ",
+        "pw-2",
+        Some("github.com"),
+        None,
+        None,
+        &key,
+    )
+    .unwrap();
+    let other = create_account_item(
+        &conn,
+        "built-in-accounts",
+        "GitLab",
+        "alice",
+        "pw-3",
+        Some("https://gitlab.com/alice"),
+        None,
+        None,
+        &key,
+    )
+    .unwrap();
+
+    // Distinct creation times keep the member order deterministic.
+    conn.execute("UPDATE items SET created_at = 100 WHERE id = ?1", [&first])
+        .unwrap();
+    conn.execute("UPDATE items SET created_at = 200 WHERE id = ?1", [&second])
+        .unwrap();
+
+    let groups = find_duplicates(&conn).unwrap();
+    assert_eq!(groups.len(), 1, "only the two github accounts share an identity: {groups:?}");
+    assert_eq!(groups[0].item_type, "account");
+    assert_eq!(
+        groups[0].key, "alice|github.com",
+        "scheme, path, port and letter case are normalised away"
+    );
+    let ids: Vec<&str> = groups[0].items.iter().map(|item| item.id.as_str()).collect();
+    assert_eq!(ids, vec![first.as_str(), second.as_str()], "members are oldest first");
+    assert!(
+        !ids.contains(&other.as_str()),
+        "a different website is a different identity"
+    );
+    assert_eq!(
+        identity_for_item(&conn, &first).unwrap(),
+        Some(("account".to_string(), "alice|github.com".to_string()))
+    );
+}
+
+#[test]
+fn duplicate_detection_pins_identity_fields_per_type() {
+    let conn = seeded_conn();
+    let key = derive_key("dup-identity-password", None).unwrap().key;
+
+    // api_key: key_name + endpoint (title and the secret are ignored).
+    let api_a = create_api_key_item(
+        &conn, "built-in-api-keys", "Stripe prod", "STRIPE_KEY", "sk-1",
+        Some("https://api.stripe.com"), None, None, &key,
+    )
+    .unwrap();
+    let api_b = create_api_key_item(
+        &conn, "built-in-api-keys", "Stripe", "stripe_key ", "sk-2",
+        Some("HTTPS://API.STRIPE.COM "), None, None, &key,
+    )
+    .unwrap();
+    let api_c = create_api_key_item(
+        &conn, "built-in-api-keys", "Stripe test", "STRIPE_KEY", "sk-3",
+        Some("https://api.stripe.com/v1"), None, None, &key,
+    )
+    .unwrap();
+
+    // env_var: title only.
+    let env_a = create_env_var_item(
+        &conn, "built-in-env-vars", "Project .env",
+        &[("A".to_string(), "1".to_string())], None, &key,
+    )
+    .unwrap();
+    let env_b = create_env_var_item(
+        &conn, "built-in-env-vars", "project .env ",
+        &[("B".to_string(), "2".to_string())], None, &key,
+    )
+    .unwrap();
+    let env_c = create_env_var_item(
+        &conn, "built-in-env-vars", "Other .env",
+        &[("A".to_string(), "3".to_string())], None, &key,
+    )
+    .unwrap();
+
+    // ssh: username + host + port.
+    let ssh_a = create_ssh_item(
+        &conn, "built-in-servers", "Bastion", "srv.example.com", Some(22), "deploy",
+        None, None, None, None, &key,
+    )
+    .unwrap();
+    let ssh_b = create_ssh_item(
+        &conn, "built-in-servers", "Bastion old", "SRV.example.com", Some(22), "Deploy",
+        None, None, None, None, &key,
+    )
+    .unwrap();
+    let ssh_c = create_ssh_item(
+        &conn, "built-in-servers", "Bastion alt port", "srv.example.com", Some(2222),
+        "deploy", None, None, None, None, &key,
+    )
+    .unwrap();
+
+    // database: db_type + host + port + database_name + username, and a missing
+    // port counts as 0.
+    let db_a = create_database_item(
+        &conn, "built-in-databases", "App DB", "postgresql", "db.internal", None,
+        Some("app"), Some("app"), None, None, None, &key,
+    )
+    .unwrap();
+    let db_b = create_database_item(
+        &conn, "built-in-databases", "App DB copy", "PostgreSQL", "DB.internal", None,
+        Some("app"), Some("app"), None, None, None, &key,
+    )
+    .unwrap();
+    let db_c = create_database_item(
+        &conn, "built-in-databases", "App DB 5432", "postgresql", "db.internal", Some(5432),
+        Some("app"), Some("app"), None, None, None, &key,
+    )
+    .unwrap();
+
+    let groups = find_duplicates(&conn).unwrap();
+    let summary: Vec<(String, String)> = groups
+        .iter()
+        .map(|group| (group.item_type.clone(), group.key.clone()))
+        .collect();
+    assert_eq!(
+        summary,
+        vec![
+            ("api_key".to_string(), "stripe_key|https://api.stripe.com".to_string()),
+            ("database".to_string(), "postgresql|db.internal|0|app|app".to_string()),
+            ("env_var".to_string(), "project .env".to_string()),
+            ("ssh".to_string(), "deploy|srv.example.com|22".to_string()),
+        ],
+        "groups are ordered by type then key"
+    );
+
+    let members = |index: usize| -> Vec<String> {
+        groups[index].items.iter().map(|item| item.id.clone()).collect()
+    };
+    let mut api_ids = members(0);
+    api_ids.sort();
+    let mut expected = vec![api_a.clone(), api_b.clone()];
+    expected.sort();
+    assert_eq!(api_ids, expected);
+    assert!(!api_ids.contains(&api_c), "a different endpoint is a different key");
+
+    let mut db_ids = members(1);
+    db_ids.sort();
+    let mut expected = vec![db_a.clone(), db_b.clone()];
+    expected.sort();
+    assert_eq!(db_ids, expected);
+    assert!(!db_ids.contains(&db_c), "a different port is a different key");
+
+    let mut env_ids = members(2);
+    env_ids.sort();
+    let mut expected = vec![env_a.clone(), env_b.clone()];
+    expected.sort();
+    assert_eq!(env_ids, expected);
+    assert!(!env_ids.contains(&env_c));
+
+    let mut ssh_ids = members(3);
+    ssh_ids.sort();
+    let mut expected = vec![ssh_a.clone(), ssh_b.clone()];
+    expected.sort();
+    assert_eq!(ssh_ids, expected);
+    assert!(!ssh_ids.contains(&ssh_c));
+}
+
+#[test]
+fn duplicate_detection_ignores_the_trash() {
+    let conn = seeded_conn();
+    let key = derive_key("dup-trash-password", None).unwrap().key;
+
+    let first = create_account_item(
+        &conn, "built-in-accounts", "Site", "u", "p1", Some("site.example.com"), None, None, &key,
+    )
+    .unwrap();
+    let second = create_account_item(
+        &conn, "built-in-accounts", "Site", "u", "p2", Some("site.example.com"), None, None, &key,
+    )
+    .unwrap();
+    let trashed = create_account_item(
+        &conn, "built-in-accounts", "Site", "u", "p3", Some("site.example.com"), None, None, &key,
+    )
+    .unwrap();
+    delete_item(&conn, &trashed).unwrap();
+
+    assert!(identity_for_item(&conn, &trashed).unwrap().is_none());
+    let groups = find_duplicates(&conn).unwrap();
+    assert_eq!(groups.len(), 1);
+    let ids: Vec<&str> = groups[0].items.iter().map(|item| item.id.as_str()).collect();
+    assert_eq!(ids.len(), 2);
+    assert!(!ids.contains(&trashed.as_str()), "trashed items are never candidates");
+
+    // A single live copy left: the group disappears instead of pointing at the trash.
+    delete_item(&conn, &second).unwrap();
+    assert!(find_duplicates(&conn).unwrap().is_empty());
+    assert_eq!(get_trash_count(&conn).unwrap(), 2);
+    assert!(
+        get_item_summary(&conn, &first).unwrap().is_some(),
+        "the surviving copy stays live"
+    );
+}
+
+#[test]
+fn archive_merges_metadata_and_trashes_the_duplicates() {
+    let conn = seeded_conn();
+    let key = derive_key("dup-merge-password", None).unwrap().key;
+
+    // Keep item: no notes / no TOTP yet, and its own (different) website spelling.
+    let keep = create_account_item(
+        &conn, "built-in-accounts", "GitHub", "alice", "keep-password",
+        Some("https://www.github.com"), None, None, &key,
+    )
+    .unwrap();
+    // Oldest duplicate carries everything worth migrating.
+    let oldest = create_account_item(
+        &conn, "built-in-accounts", "GitHub old", "alice", "dup-password",
+        Some("https://github.com/a"), Some("dup notes"), Some("JBSWY3DPEHPK3PXP"), &key,
+    )
+    .unwrap();
+    // Newer duplicate must not overwrite what the oldest duplicate filled.
+    let newest = create_account_item(
+        &conn, "built-in-accounts", "GitHub newest", "alice", "dup-2-password",
+        Some("github.com"), Some("second dup notes"), None, &key,
+    )
+    .unwrap();
+    conn.execute("UPDATE items SET created_at = 10 WHERE id = ?1", [&oldest])
+        .unwrap();
+    conn.execute("UPDATE items SET created_at = 20 WHERE id = ?1", [&keep])
+        .unwrap();
+    conn.execute("UPDATE items SET created_at = 30 WHERE id = ?1", [&newest])
+        .unwrap();
+
+    let shared_tag = create_tag(&conn, "prod", None).unwrap();
+    let extra_tag = create_tag(&conn, "old", None).unwrap();
+    set_item_tags(&conn, &keep, &[shared_tag.id.clone()]).unwrap();
+    set_item_tags(&conn, &oldest, &[shared_tag.id.clone(), extra_tag.id.clone()]).unwrap();
+
+    add_attachment(&conn, &oldest, "notes.txt", Some("text/plain"), b"attachment body", &key)
+        .unwrap();
+
+    save_custom_fields(&conn, &keep, &[("env".to_string(), "prod".to_string())], &key).unwrap();
+    save_custom_fields(
+        &conn,
+        &oldest,
+        &[("env".to_string(), "staging".to_string()), ("owner".to_string(), "alice".to_string())],
+        &key,
+    )
+    .unwrap();
+
+    // One password rotation leaves one history entry on the oldest duplicate.
+    update_account_item(
+        &conn, &oldest, "GitHub old", "alice", Some("dup-password-2"),
+        Some("https://github.com/a"), Some("dup notes"), None, &key,
+    )
+    .unwrap();
+
+    // Deliberately out of order: the merge must still apply the oldest first.
+    let report = archive_duplicates(&conn, &keep, &[newest.clone(), oldest.clone()]).unwrap();
+    assert_eq!(report.kept_id.as_str(), keep.as_str());
+    assert_eq!(report.moved_tags, 1);
+    assert_eq!(report.moved_attachments, 1);
+    assert_eq!(report.moved_custom_fields, 1);
+    assert_eq!(report.moved_history, 1);
+    assert_eq!(report.trashed, 2);
+
+    // Filled from the oldest duplicate, never overwritten afterwards.
+    let detail = get_account_item_detail(&conn, &keep, &key).unwrap();
+    assert_eq!(detail.notes.as_deref(), Some("dup notes"));
+    assert_eq!(detail.totp_secret.as_deref(), Some("JBSWY3DPEHPK3PXP"));
+    // Existing keep values survive: the website spelling and the secret.
+    assert_eq!(detail.website.as_deref(), Some("https://www.github.com"));
+    assert_eq!(detail.password, "keep-password", "the keep secret always wins");
+    assert_eq!(detail.secret_history.len(), 1);
+    assert_eq!(detail.secret_history[0].field, "password");
+    assert_eq!(detail.secret_history[0].value, "dup-password");
+
+    // The TOTP ciphertext was copied verbatim, without decrypt/re-encrypt.
+    let keep_totp: Vec<u8> = conn
+        .query_row(
+            "SELECT totp_secret_encrypted FROM account_items WHERE item_id = ?1",
+            [&keep],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let oldest_totp: Vec<u8> = conn
+        .query_row(
+            "SELECT totp_secret_encrypted FROM account_items WHERE item_id = ?1",
+            [&oldest],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(keep_totp, oldest_totp);
+
+    // Tags: the union, counted only for the link that was actually added.
+    let mut tag_ids = get_item_tag_ids(&conn, &keep).unwrap();
+    tag_ids.sort();
+    let mut expected_tags = vec![shared_tag.id.clone(), extra_tag.id.clone()];
+    expected_tags.sort();
+    assert_eq!(tag_ids, expected_tags);
+    // Tag links are copied, not stolen: the trashed duplicate keeps its own so a
+    // restore would not silently lose them.
+    assert_eq!(get_item_tag_ids(&conn, &oldest).unwrap().len(), 2);
+
+    // Attachments and custom fields moved, keep values preserved.
+    let attachments = list_attachments(&conn, &keep).unwrap();
+    assert_eq!(attachments.len(), 1);
+    let (meta, data) = get_attachment_data(&conn, &keep, &attachments[0].id, &key).unwrap();
+    assert_eq!(meta.filename, "notes.txt");
+    assert_eq!(data, b"attachment body");
+    assert!(list_attachments(&conn, &oldest).unwrap().is_empty());
+
+    let fields: Vec<(String, String)> = list_custom_fields(&conn, &keep, &key)
+        .unwrap()
+        .into_iter()
+        .map(|field| (field.key, field.value))
+        .collect();
+    assert_eq!(
+        fields,
+        vec![
+            ("env".to_string(), "prod".to_string()),
+            ("owner".to_string(), "alice".to_string()),
+        ]
+    );
+
+    // Both duplicates are in the trash; the keep item is still live and alone.
+    let trash = list_trash(&conn).unwrap();
+    assert_eq!(trash.len(), 2);
+    assert!(trash.iter().any(|item| item.id == oldest));
+    assert!(trash.iter().any(|item| item.id == newest));
+    assert!(identity_for_item(&conn, &oldest).unwrap().is_none());
+    assert!(get_account_item_detail(&conn, &keep, &key).is_ok());
+    assert!(find_duplicates(&conn).unwrap().is_empty());
+
+    let entries = list_audit_log(&conn, 5).unwrap();
+    assert_eq!(entries[0].event, "item.duplicate_merged");
+    assert_eq!(entries[0].item_id.as_deref(), Some(keep.as_str()));
+    assert_eq!(entries[0].detail.as_deref(), Some("merged 2 duplicate(s)"));
+}
+
+#[test]
+fn archive_env_var_merge_unions_variables() {
+    let conn = seeded_conn();
+    let key = derive_key("dup-env-password", None).unwrap().key;
+
+    let keep = create_env_var_item(
+        &conn,
+        "built-in-env-vars",
+        "Project",
+        &[("A".to_string(), "1".to_string())],
+        None,
+        &key,
+    )
+    .unwrap();
+    let duplicate = create_env_var_item(
+        &conn,
+        "built-in-env-vars",
+        "project",
+        &[("A".to_string(), "from-dup".to_string()), ("B".to_string(), "2".to_string())],
+        Some("dup notes"),
+        &key,
+    )
+    .unwrap();
+    assert_eq!(find_duplicates(&conn).unwrap().len(), 1);
+
+    let report = archive_duplicates(&conn, &keep, &[duplicate.clone()]).unwrap();
+    assert_eq!(report.moved_tags, 0);
+    assert_eq!(report.moved_attachments, 0);
+    assert_eq!(report.moved_custom_fields, 0);
+    assert_eq!(report.moved_history, 0);
+    assert_eq!(report.trashed, 1);
+
+    let detail = get_env_var_item_detail(&conn, &keep, &key).unwrap();
+    let variables: Vec<(String, String)> = detail
+        .variables
+        .into_iter()
+        .map(|pair| (pair.key, pair.value))
+        .collect();
+    assert_eq!(
+        variables,
+        vec![
+            ("A".to_string(), "1".to_string()),
+            ("B".to_string(), "2".to_string()),
+        ],
+        "the keep value wins on a shared key, missing keys are added"
+    );
+    assert_eq!(detail.notes.as_deref(), Some("dup notes"));
+
+    assert!(get_env_var_item_detail(&conn, &duplicate, &key).is_err());
+    assert_eq!(list_trash(&conn).unwrap().len(), 1);
+}
+
+#[test]
+fn archive_rejects_invalid_requests_without_touching_data() {
+    let conn = seeded_conn();
+    let key = derive_key("dup-validation-password", None).unwrap().key;
+
+    let keep = create_account_item(
+        &conn, "built-in-accounts", "GitHub", "alice", "p1", Some("github.com"), None, None, &key,
+    )
+    .unwrap();
+    let duplicate = create_account_item(
+        &conn, "built-in-accounts", "GitHub", "alice", "p2", Some("https://github.com/x"), None, None, &key,
+    )
+    .unwrap();
+    let other = create_account_item(
+        &conn, "built-in-accounts", "GitLab", "alice", "p3", Some("gitlab.com"), None, None, &key,
+    )
+    .unwrap();
+
+    assert!(matches!(
+        archive_duplicates(&conn, &keep, &[]),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        archive_duplicates(&conn, &keep, &[keep.clone()]),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        archive_duplicates(&conn, &keep, &[duplicate.clone(), duplicate.clone()]),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        archive_duplicates(&conn, &keep, &[other.clone()]),
+        Err(VaultError::Validation(_))
+    ));
+    let too_many: Vec<String> = (0..21).map(|index| format!("id-{index}")).collect();
+    assert!(matches!(
+        archive_duplicates(&conn, &keep, &too_many),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        archive_duplicates(&conn, &keep, &["missing-item".to_string()]),
+        Err(VaultError::ItemNotFound)
+    ));
+
+    // A trashed keep item can neither be kept nor merged into.
+    delete_item(&conn, &keep).unwrap();
+    assert!(matches!(
+        archive_duplicates(&conn, &keep, &[duplicate.clone()]),
+        Err(VaultError::ItemNotFound)
+    ));
+
+    // Nothing was mutated by any rejected request.
+    assert!(identity_for_item(&conn, &duplicate).unwrap().is_some());
+    assert!(list_trash(&conn).unwrap().iter().all(|item| item.id != duplicate));
+    assert!(get_account_item_detail(&conn, &duplicate, &key).unwrap().secret_history.is_empty());
+    assert!(list_audit_log(&conn, 200)
+        .unwrap()
+        .iter()
+        .all(|entry| entry.event != "item.duplicate_merged"));
+    assert_eq!(get_trash_count(&conn).unwrap(), 1, "only the explicit delete touched the trash");
+}

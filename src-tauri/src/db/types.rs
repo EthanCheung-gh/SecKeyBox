@@ -247,6 +247,38 @@ pub struct Tag {
     pub created_at: i64,
 }
 
+/// One member of a duplicate group: enough to pick which copy to keep.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuplicateCandidate {
+    pub id: String,
+    pub title: String,
+    pub group_id: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Items that share one identity key (same type + same structured fields).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DuplicateGroup {
+    /// The identity key the members share, e.g. `user@example.com|github.com`.
+    pub key: String,
+    #[serde(rename = "type")]
+    pub item_type: String,
+    pub items: Vec<DuplicateCandidate>,
+}
+
+/// What one archive/merge run actually moved. Every count is the number of
+/// rows that really changed (a tag already on both items is not counted).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MergeReport {
+    pub kept_id: String,
+    pub moved_tags: usize,
+    pub moved_attachments: usize,
+    pub moved_custom_fields: usize,
+    pub moved_history: usize,
+    pub trashed: usize,
+}
+
 /// One soft-deleted item as shown in the trash list.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrashItemSummary {

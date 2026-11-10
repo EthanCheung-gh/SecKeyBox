@@ -9,6 +9,7 @@ mod audit;
 mod metadata;
 mod trash;
 mod integrity;
+mod duplicates;
 
 #[cfg(test)]
 mod tests;
@@ -24,3 +25,4 @@ pub use audit::*;
 pub use metadata::*;
 pub use trash::*;
 pub use integrity::*;
+pub use duplicates::*;
