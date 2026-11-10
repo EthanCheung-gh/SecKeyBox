@@ -59,7 +59,7 @@ export async function searchItems(query: string): Promise<ItemSummary[]> {
 }
 
 export async function getItemsByGroup(groupId: string): Promise<ItemSummary[]> {
-  return invoke<ItemSummary[]>('get_items_by_group_cmd', { group_id: groupId });
+  return invoke<ItemSummary[]>('get_items_by_group_cmd', { groupId });
 }
 
 export async function getItemDetail(id: string): Promise<ItemDetail> {
@@ -74,7 +74,7 @@ export async function createNewAccountItem(
   website?: string,
   notes?: string
 ): Promise<string> {
-  return invoke<string>('create_new_account_item', { group_id: groupId, title, username, password, website, notes });
+  return invoke<string>('create_new_account_item', { groupId, title, username, password, website, notes });
 }
 
 export async function updateExistingAccountItem(
@@ -97,15 +97,18 @@ export async function createNewApiKeyItem(
   authMethod?: string,
   notes?: string
 ): Promise<string> {
-  console.log('[DEBUG] createNewApiKeyItem called with:', { groupId, title, keyName });
+  // Tauri v2 命令参数必须是 camelCase；这里对 request 结构体整体嵌套传递，
+  // 结构体内部字段保持 snake_case（由 CreateApiKeyRequest 反序列化）。
   return invoke<string>('create_new_api_key_item', {
-    group_id: groupId,
-    title,
-    key_name: keyName,
-    key_value: keyValue,
-    endpoint,
-    auth_method: authMethod,
-    notes
+    request: {
+      group_id: groupId,
+      title,
+      key_name: keyName,
+      key_value: keyValue,
+      endpoint,
+      auth_method: authMethod,
+      notes
+    }
   });
 }
 
@@ -118,13 +121,14 @@ export async function updateExistingApiKeyItem(
   authMethod?: string,
   notes?: string
 ): Promise<void> {
+  // 平铺参数：Rust 侧读取 snake_case 字段，Tauri v2 从 JS 侧接收 camelCase。
   return invoke<void>('update_existing_api_key_item', {
     id,
     title,
-    key_name: keyName,
-    key_value: keyValue,
+    keyName,
+    keyValue,
     endpoint,
-    auth_method: authMethod,
+    authMethod,
     notes
   });
 }
@@ -136,7 +140,7 @@ export async function createNewEnvVarItem(
   notes?: string
 ): Promise<string> {
   return invoke<string>('create_new_env_var_item', {
-    group_id: groupId,
+    groupId,
     title,
     variables,
     notes

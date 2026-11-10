@@ -305,7 +305,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const items = groupId
         ? await api.getItemsByGroup(groupId)
         : await api.getAllItems();
-      set({ items });
+      set({ items, error: null });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -316,7 +316,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   loadTrash: async () => {
     try {
       const trashItems = await api.listTrash();
-      set({ trashItems, trashCount: trashItems.length });
+      set({ trashItems, trashCount: trashItems.length, error: null });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -325,7 +325,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   loadTrashCount: async () => {
     try {
       const trashCount = await api.getTrashCount();
-      set({ trashCount });
+      set({ trashCount, error: null });
     } catch (e) {
       set({ error: String(e) });
     }
