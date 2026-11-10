@@ -7,6 +7,20 @@ use super::audit::log_event;
 use super::types::*;
 use super::util::{chrono_timestamp, hex_encode, item_title, with_tx};
 
+/// Items may never be created *inside* the trash group: it only ever holds
+/// soft-deleted rows, and a live item parked there would be invisible to every
+/// active list while still being readable by id. All creation paths — the
+/// Tauri commands and both importers — funnel through the `create_*` helpers,
+/// so this is the single checkpoint.
+pub fn ensure_group_can_hold_items(group_id: &str) -> Result<()> {
+    if group_id == TRASH_GROUP_ID {
+        return Err(VaultError::Validation(
+            "Items cannot be created in the trash group".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 /// A missing or trashed item header must surface as `ItemNotFound` (the IPC
 /// layer maps that to `not_found`), not as a generic database error.
 fn item_header_missing(error: rusqlite::Error) -> VaultError {
@@ -403,6 +417,7 @@ pub fn create_api_key_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
+    ensure_group_can_hold_items(group_id)?;
     with_tx(conn, |tx| {
         let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
@@ -481,6 +496,7 @@ pub fn create_account_item(
     totp_secret: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
+    ensure_group_can_hold_items(group_id)?;
     with_tx(conn, |tx| {
         let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
@@ -727,6 +743,7 @@ pub fn create_env_var_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
+    ensure_group_can_hold_items(group_id)?;
     with_tx(conn, |tx| {
         let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
@@ -878,6 +895,7 @@ pub fn create_database_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
+    ensure_group_can_hold_items(group_id)?;
     with_tx(conn, |tx| {
         let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
@@ -1038,6 +1056,7 @@ pub fn create_ssh_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
+    ensure_group_can_hold_items(group_id)?;
     with_tx(conn, |tx| {
         let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
@@ -1235,6 +1254,7 @@ pub fn create_cloud_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
+    ensure_group_can_hold_items(group_id)?;
     with_tx(conn, |tx| {
         let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
@@ -1368,6 +1388,7 @@ pub fn create_license_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
+    ensure_group_can_hold_items(group_id)?;
     with_tx(conn, |tx| {
         let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();
@@ -1503,6 +1524,7 @@ pub fn create_smtp_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<String> {
+    ensure_group_can_hold_items(group_id)?;
     with_tx(conn, |tx| {
         let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();

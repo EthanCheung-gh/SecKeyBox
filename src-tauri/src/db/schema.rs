@@ -188,12 +188,37 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_items_group ON items(group_id);
         CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
         CREATE INDEX IF NOT EXISTS idx_items_favorite ON items(is_favorite);
-        CREATE INDEX IF NOT EXISTS idx_items_deleted ON items(deleted_at);
         "#,
     )
     .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
 
-    set_schema_version(conn, SCHEMA_VERSION)?;
+    // `init_schema` also runs against a database file created by an older
+    // version, where `items` may predate schema v9. Creating the index on a
+    // missing column would abort the whole batch, so build it only once the
+    // column really exists (run_migrations adds it otherwise).
+    let has_deleted_at: std::result::Result<i32, _> = conn.query_row(
+        "SELECT 1 FROM pragma_table_info('items') WHERE name = 'deleted_at'",
+        [],
+        |_| Ok(1),
+    );
+    if has_deleted_at.is_ok() {
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_items_deleted ON items(deleted_at)",
+            [],
+        )
+        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
+    // Never overwrite an existing version stamp: a pre-v9 database must keep
+    // its old version so the following run_migrations still upgrades it.
+    let has_version: std::result::Result<i32, _> = conn.query_row(
+        "SELECT 1 FROM vault_config WHERE key = 'schema_version'",
+        [],
+        |_| Ok(1),
+    );
+    if has_version.is_err() {
+        set_schema_version(conn, SCHEMA_VERSION)?;
+    }
 
     Ok(())
 }

@@ -198,8 +198,13 @@ fn read_item(
         Err(payload) => return Err(payload),
     };
 
-    let detail = crate::commands::load_item_detail(&conn, &item_id, key.as_bytes())
-        .map_err(|e| json!({ "ok": false, "error": e.to_string() }))?;
+    let detail = crate::commands::load_item_detail(&conn, &item_id, key.as_bytes()).map_err(|e| {
+        match e {
+            // Trashed and unknown ids are indistinguishable to the CLI.
+            crate::error::VaultError::ItemNotFound => error("not_found"),
+            other => json!({ "ok": false, "error": other.to_string() }),
+        }
+    })?;
 
     let (item_type, title, id, fields) = detail_payload(&detail)
         .map_err(|e| json!({ "ok": false, "error": e.to_string() }))?;
@@ -509,6 +514,57 @@ mod tests {
         );
         assert!(env["item"]["fields"]["variables"].is_null());
         assert!(env_item_id.len() > 0);
+    }
+
+    #[test]
+    fn trashed_items_are_invisible_to_the_cli() {
+        let (db, vault, key) = setup();
+        let item_id;
+        {
+            let conn = db.lock().unwrap();
+            item_id = create_account_item(
+                &conn,
+                "built-in-accounts",
+                "GitHub",
+                "octocat",
+                "3cret-pass",
+                None,
+                None,
+                Some("JBSWY3DPEHPK3PXP"),
+                &key,
+            )
+            .unwrap();
+            crate::db::delete_item(&conn, &item_id).unwrap();
+        }
+        vault.unlock(SecureKey::new(key));
+
+        // `list` (both the full list and a search) never shows trashed items.
+        for request in [json!({ "cmd": "list" }), json!({ "cmd": "list", "query": "Git" })] {
+            let response = call(&db, &vault, request);
+            assert_eq!(response["ok"], json!(true));
+            assert!(response["items"].as_array().unwrap().is_empty());
+        }
+
+        // `get` answers `not_found` for the trashed item, by name and by id.
+        for request in [
+            json!({ "cmd": "get", "name": "GitHub" }),
+            json!({ "cmd": "get", "id": item_id.clone() }),
+        ] {
+            let response = call(&db, &vault, request);
+            assert_eq!(response["ok"], json!(false));
+            assert_eq!(response["error"], json!("not_found"));
+            assert!(response["item"].is_null());
+        }
+
+        // `totp` must not hand out a code for a trashed secret either.
+        for request in [
+            json!({ "cmd": "totp", "name": "GitHub" }),
+            json!({ "cmd": "totp", "id": item_id.clone() }),
+        ] {
+            let response = call(&db, &vault, request);
+            assert_eq!(response["error"], json!("not_found"));
+            assert!(response["code"].is_null());
+        }
     }
 
     #[test]

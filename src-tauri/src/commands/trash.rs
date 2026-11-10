@@ -74,3 +74,18 @@ pub fn empty_trash(db: State<DbConnection>, vault_state: State<VaultState>) -> R
     let conn = lock_db(&db)?;
     db::empty_trash(&conn)
 }
+
+/// Update the automatic-purge window (`0` disables it). The read-only value is
+/// reported through `get_security_settings`.
+#[tauri::command]
+pub fn set_trash_retention_days(
+    db: State<DbConnection>,
+    vault_state: State<VaultState>,
+    days: i64,
+) -> Result<()> {
+    if !vault_state.is_unlocked() {
+        return Err(VaultError::VaultLocked);
+    }
+    let conn = lock_db(&db)?;
+    db::set_trash_retention_days(&conn, days)
+}

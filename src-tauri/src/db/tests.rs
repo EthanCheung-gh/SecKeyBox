@@ -724,6 +724,175 @@ fn purge_expired_trash_respects_the_retention_window() {
     assert_eq!(trash_retention_days(&conn), MAX_TRASH_RETENTION_DAYS);
     set_retention(&conn, "not-a-number");
     assert_eq!(trash_retention_days(&conn), DEFAULT_TRASH_RETENTION_DAYS);
+    // A negative window is meaningless: fall back to the default rather than
+    // treating it like `0`, the value that means "never purge".
+    set_retention(&conn, "-5");
+    assert_eq!(trash_retention_days(&conn), DEFAULT_TRASH_RETENTION_DAYS);
+    assert_eq!(purge_expired_trash(&conn).unwrap(), 1, "default window still purges");
+}
+
+#[test]
+fn trash_retention_setter_validates_and_round_trips() {
+    let conn = seeded_conn();
+
+    assert_eq!(trash_retention_days(&conn), DEFAULT_TRASH_RETENTION_DAYS);
+    set_trash_retention_days(&conn, 7).unwrap();
+    assert_eq!(trash_retention_days(&conn), 7);
+
+    // `0` is the only value that disables the purge.
+    set_trash_retention_days(&conn, 0).unwrap();
+    assert_eq!(trash_retention_days(&conn), 0);
+
+    set_trash_retention_days(&conn, MAX_TRASH_RETENTION_DAYS).unwrap();
+    assert_eq!(trash_retention_days(&conn), MAX_TRASH_RETENTION_DAYS);
+
+    for rejected in [-1, MAX_TRASH_RETENTION_DAYS + 1, i64::MIN, i64::MAX] {
+        assert!(
+            matches!(
+                set_trash_retention_days(&conn, rejected),
+                Err(VaultError::Validation(_))
+            ),
+            "{rejected} must be rejected"
+        );
+    }
+    assert_eq!(
+        trash_retention_days(&conn),
+        MAX_TRASH_RETENTION_DAYS,
+        "a rejected write must not change the stored value"
+    );
+}
+
+#[test]
+fn items_cannot_be_created_in_the_trash_group() {
+    let conn = seeded_conn();
+    let key = derive_key("trash-create-password", None).unwrap().key;
+
+    assert!(matches!(
+        create_account_item(&conn, TRASH_GROUP_ID, "Sneaky", "u", "pw", None, None, None, &key),
+        Err(VaultError::Validation(_))
+    ));
+    assert_eq!(
+        conn.query_row("SELECT COUNT(*) FROM items", [], |r| r.get::<_, i64>(0)).unwrap(),
+        0,
+        "a rejected create must not leave an items row"
+    );
+    assert_eq!(
+        conn.query_row("SELECT COUNT(*) FROM account_items", [], |r| r.get::<_, i64>(0)).unwrap(),
+        0,
+        "a rejected create must not leave a detail row"
+    );
+
+    // Every category shares the same guard.
+    assert!(matches!(
+        create_api_key_item(&conn, TRASH_GROUP_ID, "T", "K", "v", None, None, None, &key),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        create_env_var_item(&conn, TRASH_GROUP_ID, "T", &[("A".to_string(), "1".to_string())], None, &key),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        create_database_item(
+            &conn, TRASH_GROUP_ID, "T", "postgres", "h", None, None, None, None, None, None, &key
+        ),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        create_ssh_item(&conn, TRASH_GROUP_ID, "T", "h", None, "u", None, None, None, None, &key),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        create_cloud_item(&conn, TRASH_GROUP_ID, "T", "aws", "AKIA", "s", None, None, &key),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        create_license_item(&conn, TRASH_GROUP_ID, "T", "S", "L", None, None, None, &key),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        create_smtp_item(&conn, TRASH_GROUP_ID, "T", "h", None, None, None, "p", None, None, &key),
+        Err(VaultError::Validation(_))
+    ));
+    assert_eq!(
+        conn.query_row("SELECT COUNT(*) FROM items", [], |r| r.get::<_, i64>(0)).unwrap(),
+        0
+    );
+}
+
+#[test]
+fn trashed_items_are_hidden_from_tag_lists() {
+    let conn = seeded_conn();
+    let key = derive_key("tag-trash-password", None).unwrap().key;
+    let id = create_account_item(&conn, "built-in-accounts", "Tagged", "u", "pw", None, None, None, &key)
+        .unwrap();
+    let tag = create_tag(&conn, "prod", None).unwrap();
+    set_item_tags(&conn, &id, &[tag.id.clone()]).unwrap();
+    assert_eq!(get_items_by_tag(&conn, &tag.id).unwrap().len(), 1);
+
+    delete_item(&conn, &id).unwrap();
+    assert!(
+        get_items_by_tag(&conn, &tag.id).unwrap().is_empty(),
+        "trashed items must not show up under a tag"
+    );
+    // The link survives so a restore brings the item back into the tag.
+    assert_eq!(get_item_tag_ids(&conn, &id).unwrap(), vec![tag.id.clone()]);
+
+    restore_item(&conn, &id).unwrap();
+    assert_eq!(get_items_by_tag(&conn, &tag.id).unwrap().len(), 1);
+}
+
+#[test]
+fn trash_keeps_metadata_and_history_until_purge() {
+    let conn = seeded_conn();
+    let key = derive_key("survive-password", None).unwrap().key;
+    let id = create_account_item(
+        &conn, "built-in-accounts", "Acc", "user", "old-pw", None, None, None, &key,
+    )
+    .unwrap();
+    let tag = create_tag(&conn, "prod", None).unwrap();
+    set_item_tags(&conn, &id, &[tag.id.clone()]).unwrap();
+    save_custom_fields(&conn, &id, &[("region".to_string(), "eu".to_string())], &key).unwrap();
+    add_attachment(&conn, &id, "note.txt", Some("text/plain"), b"payload", &key).unwrap();
+    // Rotating the password archives the previous value in secret_history.
+    update_account_item(&conn, &id, "Acc", "user", Some("new-pw"), None, None, None, &key).unwrap();
+
+    let count = |table: &str| -> i64 {
+        conn.query_row(
+            &format!("SELECT COUNT(*) FROM {table} WHERE item_id = ?1"),
+            [&id],
+            |row| row.get(0),
+        )
+        .unwrap()
+    };
+    let tables = ["item_tags", "custom_fields", "item_attachments", "secret_history"];
+    for table in tables {
+        assert_eq!(count(table), 1, "{table} should exist before the trash");
+    }
+
+    delete_item(&conn, &id).unwrap();
+    for table in tables {
+        assert_eq!(count(table), 1, "{table} must survive a soft delete");
+    }
+
+    purge_item(&conn, &id).unwrap();
+    for table in tables {
+        assert_eq!(count(table), 0, "{table} must be removed by the purge");
+    }
+}
+
+#[test]
+fn deleting_an_unknown_group_reports_not_found_without_audit() {
+    let conn = seeded_conn();
+    let before = list_audit_log(&conn, 50).unwrap().len();
+
+    assert!(matches!(
+        delete_group(&conn, "does-not-exist"),
+        Err(VaultError::ItemNotFound)
+    ));
+
+    let entries = list_audit_log(&conn, 50).unwrap();
+    assert_eq!(entries.len(), before, "a no-op delete must not be audited");
+    assert!(entries.iter().all(|entry| entry.event != "group.delete"));
 }
 
 fn set_retention(conn: &Connection, value: &str) {
@@ -858,12 +1027,19 @@ fn schema_v9_is_idempotent_and_adds_trash_columns() {
 #[test]
 fn migration_adds_trash_columns_to_a_v8_database() {
     let conn = Connection::open_in_memory().unwrap();
+    let key = derive_key("v8-migration-password", None).unwrap().key;
     init_schema(&conn).unwrap();
     insert_builtin_groups(&conn).unwrap();
     enable_foreign_keys(&conn).unwrap();
 
+    // A real item with a detail row, created before the upgrade.
+    let id = create_account_item(
+        &conn, "built-in-accounts", "Pre-v9", "user", "secret-pw", None, None, None, &key,
+    )
+    .unwrap();
+
     // Rebuild `items` without the v9 columns to mimic a database created by
-    // the previous schema version, then drop the trash group.
+    // the previous schema version, then drop the trash group and the index.
     conn.execute_batch(
         r#"
         PRAGMA foreign_keys = OFF;
@@ -894,6 +1070,24 @@ fn migration_adds_trash_columns_to_a_v8_database() {
         .unwrap();
     assert_eq!(before, 0, "v8 baseline must not have the trash column");
 
+    // Regression: init_schema used to create idx_items_deleted inside its batch
+    // (failing on a v8 `items` shape) and to stamp schema_version = 9, which
+    // would have made run_migrations skip the upgrade entirely.
+    init_schema(&conn).unwrap();
+    assert_eq!(
+        get_schema_version(&conn).unwrap(),
+        8,
+        "init_schema must not upgrade an existing version stamp"
+    );
+    let index_after_init: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_items_deleted'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(index_after_init, 0, "index needs the column before it exists");
+
     run_migrations(&conn).unwrap();
 
     for column in ["deleted_at", "original_group_id"] {
@@ -919,4 +1113,13 @@ fn migration_adds_trash_columns_to_a_v8_database() {
         .unwrap();
     assert_eq!(trash_group, 1, "migration must (re)create the trash group");
     assert_eq!(get_schema_version(&conn).unwrap(), 9);
+
+    // The pre-existing item and its detail survived the upgrade.
+    let items = get_all_items(&conn).unwrap();
+    assert_eq!(items.len(), 1, "the upgrade must not drop existing items");
+    assert_eq!(items[0].id, id);
+    assert_eq!(
+        get_account_item_detail(&conn, &id, &key).unwrap().password,
+        "secret-pw"
+    );
 }

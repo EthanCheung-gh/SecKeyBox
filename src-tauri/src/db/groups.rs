@@ -121,8 +121,14 @@ pub fn delete_group(conn: &Connection, id: &str) -> Result<()> {
             .ok();
 
         // Nothing left to cascade: the group holds no live items any more.
-        tx.execute("DELETE FROM groups WHERE id = ?1", [id])
+        let deleted = tx
+            .execute("DELETE FROM groups WHERE id = ?1", [id])
             .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        if deleted == 0 {
+            // Unknown group: report it instead of writing an audit entry for
+            // something that never happened.
+            return Err(VaultError::ItemNotFound);
+        }
 
         log_event(
             tx,

@@ -399,6 +399,13 @@ pub fn import_vault(
         .unwrap_or_default();
 
     for item in export.items {
+        // Import files are attacker-controlled: never let one plant a live item
+        // in the hidden trash group (it would be invisible yet still readable).
+        // Skip that entry instead of aborting the whole import.
+        if item.group_id == crate::db::TRASH_GROUP_ID {
+            result.items_skipped += 1;
+            continue;
+        }
         if existing_items.contains(&item.id) && mode == "merge" {
             result.items_skipped += 1;
             continue;

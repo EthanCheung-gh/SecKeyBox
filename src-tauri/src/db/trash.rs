@@ -193,8 +193,11 @@ pub fn empty_trash(conn: &Connection) -> Result<usize> {
 
 // ---------- automatic purge ----------
 
-/// Configured retention window in days. `0` disables the automatic purge;
-/// missing or malformed values fall back to the 30-day default.
+/// Configured retention window in days. `0` disables the automatic purge.
+/// Negative values are meaningless and are treated as "unset" (the 30-day
+/// default) rather than as `0`, which would silently disable the purge;
+/// oversized values clamp to [`MAX_TRASH_RETENTION_DAYS`], and a missing or
+/// malformed entry falls back to the default.
 pub fn trash_retention_days(conn: &Connection) -> i64 {
     let raw: Option<String> = conn
         .query_row(
@@ -203,10 +206,27 @@ pub fn trash_retention_days(conn: &Connection) -> i64 {
             |row| row.get(0),
         )
         .ok();
-    let days = raw
-        .and_then(|value| value.trim().parse::<i64>().ok())
-        .unwrap_or(DEFAULT_TRASH_RETENTION_DAYS);
-    days.clamp(0, MAX_TRASH_RETENTION_DAYS)
+    match raw.and_then(|value| value.trim().parse::<i64>().ok()) {
+        Some(days) if days < 0 => DEFAULT_TRASH_RETENTION_DAYS,
+        Some(days) => days.min(MAX_TRASH_RETENTION_DAYS),
+        None => DEFAULT_TRASH_RETENTION_DAYS,
+    }
+}
+
+/// Persist the retention window. Validation lives here (not only in the
+/// command) so every caller shares one range check.
+pub fn set_trash_retention_days(conn: &Connection, days: i64) -> Result<()> {
+    if !(0..=MAX_TRASH_RETENTION_DAYS).contains(&days) {
+        return Err(VaultError::Validation(format!(
+            "Trash retention must be between 0 and {MAX_TRASH_RETENTION_DAYS} days"
+        )));
+    }
+    conn.execute(
+        "INSERT OR REPLACE INTO vault_config (key, value) VALUES (?1, ?2)",
+        params![RETENTION_CONFIG_KEY, days.to_string()],
+    )
+    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    Ok(())
 }
 
 /// Drop trash entries older than the retention window. Runs on every unlock

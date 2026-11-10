@@ -245,6 +245,7 @@ pub fn run() {
             restore_item,
             purge_item,
             empty_trash,
+            set_trash_retention_days,
             create_backup,
             list_backups,
             delete_backup,
