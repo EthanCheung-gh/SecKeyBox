@@ -362,6 +362,21 @@ export const en: Record<string, string> = {
   'audit.event.attachment.add': 'Attachment added',
   'audit.event.attachment.delete': 'Attachment deleted',
 
+  // duplicates
+  'duplicates.tab': 'Duplicates',
+  'duplicates.title': 'Duplicate items',
+  'duplicates.hint': 'Items with the same type and identity fields are grouped here. Keep one and move the rest to the trash; metadata is carried over.',
+  'duplicates.empty': 'No duplicate items found.',
+  'duplicates.keep': 'Keep',
+  'duplicates.archive': 'Keep selected, move rest to trash',
+  'duplicates.archiving': 'Merging...',
+  'duplicates.confirm': 'Keep "{title}" and move the other {count} item(s) to the trash? Metadata will be copied to the kept item.',
+  'duplicates.result': 'Merged: {trashed} to trash · {tags} tags · {attachments} attachments · {fields} custom fields · {history} history entries.',
+  'duplicates.error': 'Duplicate scan failed: {message}',
+  'duplicates.archiveError': 'Merge failed: {message}',
+  'duplicates.count': '{count} items',
+  'duplicates.created': 'Created {time}',
+
   // updates
   'update.title': 'Updates',
   'update.currentVersion': 'Current version {version}',

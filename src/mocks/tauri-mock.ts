@@ -1386,6 +1386,42 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
     return { weak_passwords: weak, reused_secrets: reused, stale_rotations: stale, missing_2fa: missing2fa, expiring_licenses: expiring };
   },
 
+  // --- duplicates（重复项） ---
+
+  // 演示数据里没有保证存在的重复组（每类条目字段各不相同），因此扫描结果
+  // 恒定为空：浏览器调试时看到的是真实的“未发现重复条目”空状态。
+  find_duplicates: () => {
+    requireUnlocked();
+    return [];
+  },
+
+  archive_duplicates: (a) => {
+    requireUnlocked();
+    const keepId = str(a, 'keepId', 'keep_id');
+    const raw = a.duplicateIds ?? a.duplicate_ids;
+    const duplicateIds = Array.isArray(raw) ? (raw as string[]) : [];
+    let trashed = 0;
+    for (const id of duplicateIds) {
+      if (id === keepId) continue;
+      const item = state.items.find((i) => i.id === id);
+      if (!item) continue;
+      // 与 delete_existing_item 相同的软删除语义，保留项本身不动
+      const groupName = state.groups.find((g) => g.id === item.group_id)?.name ?? '';
+      trashMockItem(item, item.group_id, groupName);
+      state.items = state.items.filter((i) => i.id !== id);
+      trashed++;
+    }
+    // mock 不做元数据迁移（标签/附件/自定义字段/历史），计数恒为 0
+    return {
+      kept_id: keepId,
+      moved_tags: 0,
+      moved_attachments: 0,
+      moved_custom_fields: 0,
+      moved_history: 0,
+      trashed,
+    };
+  },
+
   import_csv: (a) => {
     if (!state.unlocked) throw vaultErr('VaultLocked', 'Vault is locked');
     const data = str(a, 'data');

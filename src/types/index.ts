@@ -76,6 +76,34 @@ export interface SecurityAudit {
   expiring_licenses: AuditFinding[];
 }
 
+/** One member of a duplicate group: enough to pick which copy to keep. */
+export interface DuplicateCandidate {
+  id: string;
+  title: string;
+  group_id: string;
+  created_at: number;
+  updated_at: number;
+}
+
+/** Items that share one identity key (same type + same structured fields). */
+export interface DuplicateGroup {
+  /** The identity key the members share, e.g. `user@example.com|github.com`. */
+  key: string;
+  type: ItemSummary['type'];
+  /** Members ordered oldest first, so `items[0]` is the default "keep". */
+  items: DuplicateCandidate[];
+}
+
+/** What one archive/merge run actually moved (real row counts, snake_case). */
+export interface MergeReport {
+  kept_id: string;
+  moved_tags: number;
+  moved_attachments: number;
+  moved_custom_fields: number;
+  moved_history: number;
+  trashed: number;
+}
+
 export interface ImportToolsResult {
   groups_imported: number;
   items_imported: number;

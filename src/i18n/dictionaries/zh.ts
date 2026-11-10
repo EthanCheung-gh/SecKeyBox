@@ -362,6 +362,21 @@ export const zh: Record<string, string> = {
   'audit.event.attachment.add': '添加附件',
   'audit.event.attachment.delete': '删除附件',
 
+  // duplicates
+  'duplicates.tab': '重复项',
+  'duplicates.title': '重复条目',
+  'duplicates.hint': '类型与身份字段相同的条目会归为一组。保留一条，其余移入回收站；元数据会迁移到保留条目。',
+  'duplicates.empty': '未发现重复条目。',
+  'duplicates.keep': '保留',
+  'duplicates.archive': '保留选中项，其余移入回收站',
+  'duplicates.archiving': '合并中...',
+  'duplicates.confirm': '保留“{title}”，将其余 {count} 个条目移入回收站？元数据会复制到保留条目。',
+  'duplicates.result': '已合并：{trashed} 条移入回收站 · {tags} 个标签 · {attachments} 个附件 · {fields} 个自定义字段 · {history} 条历史。',
+  'duplicates.error': '重复项扫描失败：{message}',
+  'duplicates.archiveError': '合并失败：{message}',
+  'duplicates.count': '{count} 个条目',
+  'duplicates.created': '创建于 {time}',
+
   // updates
   'update.title': '软件更新',
   'update.currentVersion': '当前版本 {version}',

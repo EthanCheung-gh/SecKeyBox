@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag, BackupInfo, TrashItemSummary, IntegrityReport } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag, BackupInfo, TrashItemSummary, IntegrityReport, DuplicateGroup, MergeReport } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -191,6 +191,24 @@ export async function getTotpCode(id: string): Promise<TotpCode> {
 
 export async function runSecurityAudit(): Promise<SecurityAudit> {
   return invoke<SecurityAudit>('security_audit');
+}
+
+// --- Duplicate items ---
+
+/** Active items grouped by identity key (same type + same structured fields). */
+export async function findDuplicates(): Promise<DuplicateGroup[]> {
+  return invoke<DuplicateGroup[]>('find_duplicates');
+}
+
+/**
+ * Keep `keepId`, move `duplicateIds` to the trash and carry their metadata
+ * (tags, attachments, custom fields, history) over to the kept item.
+ */
+export async function archiveDuplicates(
+  keepId: string,
+  duplicateIds: string[]
+): Promise<MergeReport> {
+  return invoke<MergeReport>('archive_duplicates', { keepId, duplicateIds });
 }
 
 /**

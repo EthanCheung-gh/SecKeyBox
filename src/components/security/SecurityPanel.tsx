@@ -6,6 +6,7 @@ import { useVaultStore } from '@/stores/vault';
 import type { SecurityAudit as Audit } from '@/types';
 import { useI18n } from '@/i18n';
 import { ActivityLog } from './ActivityLog';
+import { DuplicateGroups } from './DuplicateGroups';
 
 const Section = ({
   title,
@@ -48,7 +49,7 @@ const Section = ({
 
 export function SecurityPanel({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
-  const [tab, setTab] = useState<'security' | 'activity'>('security');
+  const [tab, setTab] = useState<'security' | 'activity' | 'duplicates'>('security');
   const [audit, setAudit] = useState<Audit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,10 +125,22 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
         >
           {t('audit.tabActivity')}
         </button>
+        <button
+          onClick={() => setTab('duplicates')}
+          className={`rounded-md border px-3 py-1 ${
+            tab === 'duplicates'
+              ? 'border-primary-500 text-primary-600 dark:text-primary-400'
+              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'
+          }`}
+        >
+          {t('duplicates.tab')}
+        </button>
       </div>
 
       {tab === 'activity' ? (
         <ActivityLog />
+      ) : tab === 'duplicates' ? (
+        <DuplicateGroups />
       ) : (
         <>
       {loading && <p className="text-sm text-gray-500">{t('security.analyzing')}</p>}
