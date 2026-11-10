@@ -49,3 +49,10 @@ jobs:
 
       - name: Run backend tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Reject debug traces
+        run: |
+          if grep -rn "\[DEBUG\]" src-tauri/src; then
+            echo "::error::Remove [DEBUG] traces from the backend"
+            exit 1
+          fi

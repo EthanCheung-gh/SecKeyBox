@@ -42,14 +42,10 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let db_path = get_db_path(&app.handle());
-            eprintln!("[DEBUG] setup: db_path = {:?}", db_path);
-            eprintln!("[DEBUG] setup: db_path.exists() = {}", db_path.exists());
 
             let conn = if db_path.exists() {
-                eprintln!("[DEBUG] setup: opening existing database file");
                 open_connection(&db_path).expect("Failed to open database")
             } else {
-                eprintln!("[DEBUG] setup: no database, using in-memory (will create file on init)");
                 let conn =
                     rusqlite::Connection::open_in_memory().expect("Failed to create in-memory DB");
                 crate::db::enable_foreign_keys(&conn).expect("Failed to enable foreign keys");

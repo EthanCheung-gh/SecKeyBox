@@ -155,30 +155,21 @@ pub fn create_new_account_item(
     notes: Option<String>,
     totp_secret: Option<String>,
 ) -> Result<String> {
-    eprintln!(
-        "[DEBUG] create_new_account_item: called with group_id={}, title={}",
-        group_id, title
-    );
-
     if !vault_state.is_unlocked() {
-        eprintln!("[DEBUG] create_new_account_item: vault is locked!");
         return Err(VaultError::VaultLocked);
     }
 
     if title.is_empty() || title.len() > 100 {
-        eprintln!("[DEBUG] create_new_account_item: invalid title");
         return Err(VaultError::DatabaseError(
             "Title must be 1-100 characters".to_string(),
         ));
     }
     if username.is_empty() || username.len() > 100 {
-        eprintln!("[DEBUG] create_new_account_item: invalid username");
         return Err(VaultError::DatabaseError(
             "Username must be 1-100 characters".to_string(),
         ));
     }
     if password.is_empty() || password.len() > 1000 {
-        eprintln!("[DEBUG] create_new_account_item: invalid password");
         return Err(VaultError::DatabaseError(
             "Password must be 1-1000 characters".to_string(),
         ));
@@ -188,17 +179,13 @@ pub fn create_new_account_item(
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
 
-    eprintln!("[DEBUG] create_new_account_item: got master key");
-
     let conn = db
         .inner()
         .0
         .lock()
         .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
-    eprintln!("[DEBUG] create_new_account_item: got db connection, calling create_account_item");
-
-    let result = create_account_item(
+    create_account_item(
         &conn,
         &group_id,
         &title,
@@ -208,10 +195,7 @@ pub fn create_new_account_item(
         notes.as_deref(),
         totp_secret.as_deref(),
         key.as_bytes(),
-    );
-
-    eprintln!("[DEBUG] create_new_account_item: result = {:?}", result);
-    result
+    )
 }
 
 #[tauri::command]
@@ -277,30 +261,21 @@ pub fn create_new_api_key_item(
     vault_state: State<VaultState>,
     request: CreateApiKeyRequest,
 ) -> Result<String> {
-    eprintln!(
-        "[DEBUG] create_new_api_key_item: group_id={}, title={}, key_name={}",
-        request.group_id, request.title, request.key_name
-    );
-
     if !vault_state.is_unlocked() {
-        eprintln!("[DEBUG] create_new_api_key_item: vault locked");
         return Err(VaultError::VaultLocked);
     }
 
     if request.title.is_empty() || request.title.len() > 100 {
-        eprintln!("[DEBUG] create_new_api_key_item: invalid title");
         return Err(VaultError::DatabaseError(
             "Title must be 1-100 characters".to_string(),
         ));
     }
     if request.key_name.is_empty() || request.key_name.len() > 100 {
-        eprintln!("[DEBUG] create_new_api_key_item: invalid key_name");
         return Err(VaultError::DatabaseError(
             "Key name must be 1-100 characters".to_string(),
         ));
     }
     if request.key_value.is_empty() || request.key_value.len() > 50000 {
-        eprintln!("[DEBUG] create_new_api_key_item: invalid key_value");
         return Err(VaultError::DatabaseError(
             "Key value must be 1-50000 characters".to_string(),
         ));
@@ -331,17 +306,13 @@ pub fn create_new_api_key_item(
         .get_master_key()
         .ok_or(VaultError::VaultLocked)?;
 
-    eprintln!("[DEBUG] create_new_api_key_item: got master key");
-
     let conn = db
         .inner()
         .0
         .lock()
         .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
 
-    eprintln!("[DEBUG] create_new_api_key_item: calling create_api_key_item");
-
-    let result = create_api_key_item(
+    create_api_key_item(
         &conn,
         &request.group_id,
         &request.title,
@@ -351,10 +322,7 @@ pub fn create_new_api_key_item(
         request.auth_method.as_deref(),
         request.notes.as_deref(),
         key.as_bytes(),
-    );
-
-    eprintln!("[DEBUG] create_new_api_key_item: result = {:?}", result);
-    result
+    )
 }
 
 #[tauri::command]
@@ -463,26 +431,16 @@ pub fn create_new_env_var_item(
     variables: Vec<EnvVarPairInput>,
     notes: Option<String>,
 ) -> Result<String> {
-    eprintln!(
-        "[DEBUG] create_new_env_var_item: group_id={}, title={}, variables count={}",
-        group_id,
-        title,
-        variables.len()
-    );
-
     if !vault_state.is_unlocked() {
-        eprintln!("[DEBUG] create_new_env_var_item: vault locked");
         return Err(VaultError::VaultLocked);
     }
 
     if title.is_empty() || title.len() > 100 {
-        eprintln!("[DEBUG] create_new_env_var_item: invalid title");
         return Err(VaultError::DatabaseError(
             "Title must be 1-100 characters".to_string(),
         ));
     }
     if variables.is_empty() {
-        eprintln!("[DEBUG] create_new_env_var_item: no variables");
         return Err(VaultError::DatabaseError(
             "At least one variable is required".to_string(),
         ));

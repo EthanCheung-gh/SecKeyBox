@@ -71,7 +71,7 @@ pub fn spawn(app: tauri::AppHandle) {
             }
         };
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-        eprintln!("[DEBUG] CLI socket listening at {:?}", path);
+        eprintln!("[INFO] CLI socket listening at {:?}", path);
 
         for connection in listener.incoming() {
             match connection {
