@@ -14,6 +14,7 @@ interface UIState {
   deleteConfirmTarget: { type: 'group' | 'item'; id: string; name: string } | null;
   newItemType: 'account' | 'api_key' | 'env_var' | 'database' | 'ssh' | 'cloud' | 'license' | 'smtp';
   isSecurityPanelOpen: boolean;
+  isTrashOpen: boolean;
 
   setSelectedGroup: (id: string | null) => void;
   setSelectedTag: (id: string | null) => void;
@@ -22,6 +23,8 @@ interface UIState {
   setSortBy: (sort: UIState['sortBy']) => void;
   openSecurityPanel: () => void;
   closeSecurityPanel: () => void;
+  openTrash: () => void;
+  closeTrash: () => void;
   openAddItemModal: () => void;
   closeAddItemModal: () => void;
   openAddGroupModal: () => void;
@@ -51,10 +54,11 @@ export const useUIStore = create<UIState>((set) => ({
   deleteConfirmTarget: null,
   newItemType: 'account',
   isSecurityPanelOpen: false,
+  isTrashOpen: false,
 
-  setSelectedGroup: (id) => set({ selectedGroupId: id, selectedTagId: null, showFavoritesOnly: false }),
-  setSelectedTag: (id) => set({ selectedTagId: id, selectedGroupId: null, showFavoritesOnly: false }),
-  setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show, selectedGroupId: null, selectedTagId: null }),
+  setSelectedGroup: (id) => set({ selectedGroupId: id, selectedTagId: null, showFavoritesOnly: false, isTrashOpen: false, isSecurityPanelOpen: false }),
+  setSelectedTag: (id) => set({ selectedTagId: id, selectedGroupId: null, showFavoritesOnly: false, isTrashOpen: false, isSecurityPanelOpen: false }),
+  setShowFavoritesOnly: (show) => set({ showFavoritesOnly: show, selectedGroupId: null, selectedTagId: null, isTrashOpen: false, isSecurityPanelOpen: false }),
   setSearchQuery: (query) => set({ searchQuery: query }),
   setSortBy: (sort) => set({ sortBy: sort }),
   openAddItemModal: () => set({ isAddItemModalOpen: true }),
@@ -70,6 +74,10 @@ export const useUIStore = create<UIState>((set) => ({
   openDeleteConfirm: (type, id, name) => set({ deleteConfirmTarget: { type, id, name } }),
   closeDeleteConfirm: () => set({ deleteConfirmTarget: null }),
   setNewItemType: (type) => set({ newItemType: type }),
-  openSecurityPanel: () => set({ isSecurityPanelOpen: true }),
+  openSecurityPanel: () => set({ isSecurityPanelOpen: true, isTrashOpen: false }),
   closeSecurityPanel: () => set({ isSecurityPanelOpen: false }),
+  // Trash reuses the item list area: opening it hides the security panel but
+  // keeps the group/tag/favorites selection so closing it returns there.
+  openTrash: () => set({ isTrashOpen: true, isSecurityPanelOpen: false }),
+  closeTrash: () => set({ isTrashOpen: false }),
 }));

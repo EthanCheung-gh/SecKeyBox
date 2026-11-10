@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail, EnvVarPair, Tag } from '@/types';
+import type { Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail, EnvVarPair, Tag, TrashItemSummary } from '@/types';
 import * as api from '@/lib/tauri'; // 保留读取操作的 api 调用
 
 interface VaultState {
@@ -14,6 +14,10 @@ interface VaultState {
    * null 表示当前不在后端搜索状态（未输入搜索词，或已锁定/已清除）。
    */
   searchResults: { query: string; items: ItemSummary[] } | null;
+  /** 回收站条目（软删除），按删除时间倒序 */
+  trashItems: TrashItemSummary[];
+  /** 侧栏回收站角标 */
+  trashCount: number;
   selectedItem: AccountItemDetail | ApiKeyItemDetail | EnvVarItemDetail | DatabaseItemDetail | SshItemDetail | CloudItemDetail | LicenseItemDetail | SmtpItemDetail | null;
   isLoading: boolean;
   error: string | null;
@@ -28,6 +32,11 @@ interface VaultState {
   deleteTag: (id: string) => Promise<void>;
   loadItemsByTag: (tagId: string) => Promise<void>;
   loadItems: (groupId?: string) => Promise<void>;
+  loadTrash: () => Promise<void>;
+  loadTrashCount: () => Promise<void>;
+  restoreTrashItem: (id: string) => Promise<void>;
+  purgeTrashItem: (id: string) => Promise<void>;
+  emptyTrash: () => Promise<void>;
   searchItems: (query: string) => Promise<void>;
   clearSearch: () => void;
   selectItem: (id: string) => Promise<void>;
@@ -192,6 +201,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   tags: [],
   items: [],
   searchResults: null,
+  trashItems: [],
+  trashCount: 0,
   selectedItem: null,
   isLoading: false,
   error: null,
@@ -213,6 +224,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       await api.initializeVault(password);
       set({ isInitialized: true, isUnlocked: true, isLoading: false });
       await get().loadGroups();
+      await get().loadTrashCount();
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }
@@ -224,6 +236,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       await api.unlockVault(password);
       set({ isUnlocked: true, isLoading: false });
       await get().loadGroups();
+      await get().loadTrashCount();
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }
@@ -231,8 +244,15 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   lock: async () => {
     await api.lockVault();
-    // 同步清除搜索状态，避免锁定后残留旧结果
-    set({ isUnlocked: false, items: [], selectedItem: null, searchResults: null });
+    // 同步清除搜索与回收站状态，避免锁定后残留旧数据
+    set({
+      isUnlocked: false,
+      items: [],
+      selectedItem: null,
+      searchResults: null,
+      trashItems: [],
+      trashCount: 0,
+    });
   },
 
   loadGroups: async () => {
@@ -286,6 +306,56 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         ? await api.getItemsByGroup(groupId)
         : await api.getAllItems();
       set({ items });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  // --- 回收站（软删除条目） ---
+
+  loadTrash: async () => {
+    try {
+      const trashItems = await api.listTrash();
+      set({ trashItems, trashCount: trashItems.length });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  loadTrashCount: async () => {
+    try {
+      const trashCount = await api.getTrashCount();
+      set({ trashCount });
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  restoreTrashItem: async (id) => {
+    try {
+      await api.restoreTrashItem(id);
+      // 原分组可能已删除（回退到内置分组），因此分组与条目都要重新拉取
+      await get().loadTrash();
+      await get().loadItems();
+      await get().loadGroups();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  purgeTrashItem: async (id) => {
+    try {
+      await api.purgeTrashItem(id);
+      await get().loadTrash();
+    } catch (e) {
+      set({ error: String(e) });
+    }
+  },
+
+  emptyTrash: async () => {
+    try {
+      await api.emptyTrash();
+      set({ trashItems: [], trashCount: 0 });
     } catch (e) {
       set({ error: String(e) });
     }
@@ -354,6 +424,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       }));
       await get().loadGroups();
       await get().loadItems();
+      await get().loadTrashCount();
     } catch (e) {
       console.error('[DEBUG] deleteGroup error:', e);
       set({ error: String(e) });
@@ -416,6 +487,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       }));
       // Then reload from backend to ensure consistency
       await get().loadItems();
+      // 删除是软删除：回收站角标需要同步刷新
+      await get().loadTrashCount();
     } catch (e) {
       console.error('[DEBUG] deleteItem error:', e);
       set({ error: String(e) });

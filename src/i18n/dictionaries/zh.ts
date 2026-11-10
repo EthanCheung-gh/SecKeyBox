@@ -48,6 +48,7 @@ export const zh: Record<string, string> = {
   'sidebar.addGroup': '新建分组',
   'sidebar.lock': '锁定',
   'sidebar.securityCheck': '安全体检',
+  'sidebar.trash': '回收站',
   'sidebar.rename': '重命名',
   'sidebar.delete': '删除',
 
@@ -264,6 +265,10 @@ export const zh: Record<string, string> = {
   'settings.neverClear': '不自动清除',
   'settings.languageEn': 'English',
   'settings.languageZh': '简体中文',
+  'settings.trashRetention': '回收站保留期',
+  'settings.trashRetentionHint': '删除的条目会在此期限后被永久清除。选择“永不”则一直保留，直到手动清空。',
+  'settings.trashRetentionNever': '永不',
+  'settings.days': '{count} 天',
 
   // change master password
   'changePassword.open': '修改主密码',
@@ -289,6 +294,26 @@ export const zh: Record<string, string> = {
   'group.deleteItemsWarning': '这会永久删除该分组内的 {count} 个条目。',
   'group.typeGroup': '分组',
   'group.typeItem': '条目',
+
+  // trash
+  'trash.title': '回收站',
+  'trash.hint': '条目保留 {days} 天后自动清除。',
+  'trash.hintNever': '条目会一直保留，直到你手动删除。',
+  'trash.empty': '回收站是空的。',
+  'trash.restore': '恢复',
+  'trash.purge': '永久删除',
+  'trash.emptyTrash': '清空回收站',
+  'trash.purgeConfirm': '永久删除“{name}”？此操作不可撤销。',
+  'trash.emptyConfirm': '永久删除回收站中的 {count} 个条目？此操作不可撤销。',
+  'trash.deletedAt': '删除于 {time}',
+  'trash.originalGroup': '原分组：{name}',
+  'trash.groupDeleted': '原分组已删除',
+  'trash.deleteItemTitle': '移到回收站？',
+  'trash.deleteItemBody': '将“{name}”移到回收站？之后可以恢复。',
+  'trash.deleteGroupTitle': '删除分组？',
+  'trash.deleteGroupBody': '删除“{name}”？其中的条目会移到回收站。',
+  'trash.deleteGroupItemsWarning': '{count} 个条目将移到回收站。',
+  'trash.moveToTrash': '移到回收站',
 
   // palette
   'palette.placeholder': '搜索后回车复制…',

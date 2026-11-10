@@ -20,6 +20,7 @@ import type {
   ItemDetail,
   SecretHistoryEntry,
   EnvVarPair,
+  TrashItemSummary,
 } from '@/types';
 
 type ItemType = 'account' | 'api_key' | 'env_var' | 'database' | 'ssh' | 'cloud' | 'license' | 'smtp';
@@ -77,6 +78,10 @@ type MockState = {
   unlocked: boolean;
   groups: Group[];
   items: MockItem[];
+  /** 回收站：软删除条目（浏览器调试用，条目本体从 items 移出） */
+  trashed: MockTrashRecord[];
+  /** 回收站保留期（天，0 = 不自动清理），与后端 vault_config 对齐 */
+  trashRetentionDays: number;
   mockFs: Map<string, string>;
   lastExportPath: string | null;
   /** 最近一次成功使用的主密码，仅用于校验「当前密码」是否正确 */
@@ -94,6 +99,15 @@ type MockState = {
   backups: { file: string; created_at: number; size: number }[];
 };
 
+/** 回收站记录：条目本体 + 删除时间 + 原分组（与后端 items.deleted_at / original_group_id 对齐） */
+type MockTrashRecord = {
+  item: MockItem;
+  deleted_at: number;
+  original_group_id: string;
+  /** 删除时的分组名快照（分组随后被删也保留，dump() 时仍能看出条目来源） */
+  original_group_name: string;
+};
+
 type MockAttachment = {
   id: string;
   item_id: string;
@@ -109,6 +123,8 @@ const state: MockState = {
   unlocked: false,
   groups: [],
   items: [],
+  trashed: [],
+  trashRetentionDays: 30,
   mockFs: new Map(),
   lastExportPath: null,
   masterPassword: null,
@@ -308,6 +324,63 @@ function toSummary(item: MockItem): ItemSummary {  return {
   };
 }
 
+/**
+ * 回收站摘要：`original_group_name` 按当前分组表解析，分组删除后与后端
+ * （`list_trash` 的 LEFT JOIN）一样返回 null，UI 据此显示“原分组已删除”。
+ */
+function toTrashSummary(record: MockTrashRecord): TrashItemSummary {
+  const group = state.groups.find((g) => g.id === record.original_group_id);
+  return {
+    id: record.item.id,
+    title: record.item.title,
+    type: record.item.type,
+    icon: record.item.icon,
+    deleted_at: record.deleted_at,
+    original_group_id: record.original_group_id || null,
+    original_group_name: group ? group.name : null,
+  };
+}
+
+/** 软删除：条目移出 active 列表，保留本体以便恢复 */
+function trashMockItem(item: MockItem, groupId: string, groupName: string): void {
+  if (state.trashed.some((record) => record.item.id === item.id)) return;
+  state.trashed.unshift({
+    item,
+    deleted_at: now(),
+    original_group_id: groupId,
+    original_group_name: groupName,
+  });
+}
+
+/**
+ * 恢复兜底：任一现存分组（mock 不建 built-in-trash 占位分组，因为条目本体已移出
+ * items）；分组全被删光时重建内置账号分组，对齐后端 insert_builtin_groups。
+ */
+function firstGroupId(): string {
+  const first = [...state.groups].sort((a, b) => a.sort_order - b.sort_order)[0] as Group | undefined;
+  if (first) return first.id;
+  const t = now();
+  const group: Group = {
+    id: 'built-in-accounts',
+    name: 'Accounts',
+    icon: '🔑',
+    parent_id: undefined,
+    sort_order: 0,
+    created_at: t,
+    updated_at: t,
+  };
+  state.groups.push(group);
+  return group.id;
+}
+
+/** 永久删除时清理关联数据（对齐后端 ON DELETE CASCADE 的可见部分） */
+function purgeMockItemData(itemId: string): void {
+  state.attachments = state.attachments.filter((att) => att.item_id !== itemId);
+  state.customFields.delete(itemId);
+  state.itemTags.delete(itemId);
+  history.delete(itemId);
+}
+
 function toDetail(item: MockItem): ItemDetail {
   const common = {
     id: item.id,
@@ -416,6 +489,7 @@ function toDetail(item: MockItem): ItemDetail {
 
 function seedDemoData(): void {
   const t = now();
+  state.trashed = [];
   state.groups = [
     { id: 'built-in-accounts', name: 'Accounts', icon: '🔑', parent_id: undefined, sort_order: 0, created_at: t, updated_at: t },
     { id: 'built-in-api-keys', name: 'API Keys', icon: '🔧', parent_id: undefined, sort_order: 1, created_at: t, updated_at: t },
@@ -864,10 +938,16 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
 
   delete_existing_group: (a) => {
+    requireUnlocked();
     const id = str(a, 'id');
-    // 与后端一致：任何分组（含内置）都可删除，组内条目级联删除
+    // 与后端一致：组内条目先移入回收站（保留详情），再删除分组本身
+    const groupName = state.groups.find((g) => g.id === id)?.name ?? '';
+    state.items = state.items.filter((item) => {
+      if (item.group_id !== id) return true;
+      trashMockItem(item, id, groupName);
+      return false;
+    });
     state.groups = state.groups.filter((g) => g.id !== id);
-    state.items = state.items.filter((i) => i.group_id !== id);
     return null;
   },
 
@@ -1380,8 +1460,73 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
   },
 
   delete_existing_item: (a) => {
+    requireUnlocked();
     const id = str(a, 'id');
+    // 与后端一致：软删除，条目移入回收站而不是硬删除
+    const item = state.items.find((i) => i.id === id);
+    if (!item) return null;
+    const groupName = state.groups.find((g) => g.id === item.group_id)?.name ?? '';
+    trashMockItem(item, item.group_id, groupName);
     state.items = state.items.filter((i) => i.id !== id);
+    return null;
+  },
+
+  // --- trash（软删除条目） ---
+
+  list_trash: () => {
+    requireUnlocked();
+    return [...state.trashed]
+      .sort((a, b) => b.deleted_at - a.deleted_at)
+      .map(toTrashSummary);
+  },
+
+  get_trash_count: () => {
+    requireUnlocked();
+    return state.trashed.length;
+  },
+
+  restore_item: (a) => {
+    requireUnlocked();
+    const id = str(a, 'id');
+    const record = state.trashed.find((r) => r.item.id === id);
+    if (!record) throw vaultErr('ItemNotFound', `Item not found in trash: ${id}`);
+    // 原分组还在就放回去，否则回退到第一个分组（与后端 ensure_fallback_group 一致）
+    const target = state.groups.some((g) => g.id === record.original_group_id)
+      ? record.original_group_id
+      : firstGroupId();
+    state.trashed = state.trashed.filter((r) => r.item.id !== id);
+    record.item.group_id = target;
+    record.item.updated_at = now();
+    state.items.push(record.item);
+    return null;
+  },
+
+  purge_item: (a) => {
+    requireUnlocked();
+    const id = str(a, 'id');
+    if (!state.trashed.some((r) => r.item.id === id)) {
+      throw vaultErr('ItemNotFound', `Item not found in trash: ${id}`);
+    }
+    state.trashed = state.trashed.filter((r) => r.item.id !== id);
+    purgeMockItemData(id);
+    return null;
+  },
+
+  empty_trash: () => {
+    requireUnlocked();
+    const count = state.trashed.length;
+    for (const record of state.trashed) purgeMockItemData(record.item.id);
+    state.trashed = [];
+    return count;
+  },
+
+  set_trash_retention_days: (a) => {
+    requireUnlocked();
+    const days = num(a, 'days') ?? 0;
+    if (days < 0 || days > 3650) {
+      throw vaultErr('Validation', 'Trash retention must be between 0 and 3650 days');
+    }
+    state.trashRetentionDays = days;
     return null;
   },
 
@@ -1416,7 +1561,10 @@ const commands: Record<string, (args: Record<string, unknown>) => unknown> = {
   // 让设置界面在浏览器调试时可用。
   record_activity: () => null,
 
-  get_security_settings: () => ({ auto_lock_minutes: state.autoLockMinutes }),
+  get_security_settings: () => ({
+    auto_lock_minutes: state.autoLockMinutes,
+    trash_retention_days: state.trashRetentionDays ?? 30,
+  }),
 
   set_auto_lock_minutes: (a) => {
     const minutes = num(a, 'minutes') ?? 0;
@@ -1798,6 +1946,7 @@ export function installTauriBrowserMock(): void {
       state.mockFs.clear();
       state.lastExportPath = null;
       seedDemoData();
+      state.trashRetentionDays = 30;
       console.info('[SecKeyBox mock] 已重置（刷新页面生效）');
     },
     /** 回到首次安装流程（SetupScreen） */

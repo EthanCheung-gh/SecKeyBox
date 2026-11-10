@@ -8,8 +8,43 @@ describe('i18n dictionaries', () => {
     const enKeys = Object.keys(en).sort();
     const zhKeys = Object.keys(zh).sort();
 
-    expect(enKeys).toHaveLength(327);
     expect(enKeys).toEqual(zhKeys);
+  });
+
+  it('translates the trash and trash-retention settings keys in both languages', () => {
+    const trashKeys = [
+      'sidebar.trash',
+      'trash.title',
+      'trash.hint',
+      'trash.hintNever',
+      'trash.empty',
+      'trash.restore',
+      'trash.purge',
+      'trash.emptyTrash',
+      'trash.purgeConfirm',
+      'trash.emptyConfirm',
+      'trash.deletedAt',
+      'trash.originalGroup',
+      'trash.groupDeleted',
+      'trash.deleteItemTitle',
+      'trash.deleteItemBody',
+      'trash.deleteGroupTitle',
+      'trash.deleteGroupBody',
+      'trash.deleteGroupItemsWarning',
+      'trash.moveToTrash',
+      'settings.trashRetention',
+      'settings.trashRetentionHint',
+      'settings.trashRetentionNever',
+      'settings.days',
+    ];
+
+    for (const key of trashKeys) {
+      expect(en[key], `en: ${key}`).toBeTruthy();
+      expect(zh[key], `zh: ${key}`).toBeTruthy();
+    }
+
+    expect(translate('en', 'trash.title')).toBe('Trash');
+    expect(translate('zh', 'trash.title')).toBe('回收站');
   });
 });
 

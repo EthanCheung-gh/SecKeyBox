@@ -7,6 +7,8 @@ describe('useUIStore view selection', () => {
       selectedGroupId: null,
       selectedTagId: null,
       showFavoritesOnly: false,
+      isSecurityPanelOpen: false,
+      isTrashOpen: false,
     });
   });
 
@@ -43,6 +45,57 @@ describe('useUIStore view selection', () => {
       selectedGroupId: null,
       selectedTagId: null,
       showFavoritesOnly: true,
+    });
+  });
+
+  it('closes the security panel and keeps the group when the trash opens', () => {
+    useUIStore.setState({
+      selectedGroupId: 'group-1',
+      selectedTagId: null,
+      showFavoritesOnly: false,
+      isSecurityPanelOpen: true,
+    });
+
+    useUIStore.getState().openTrash();
+
+    expect(useUIStore.getState()).toMatchObject({
+      isTrashOpen: true,
+      isSecurityPanelOpen: false,
+      selectedGroupId: 'group-1',
+    });
+  });
+
+  it('closes the trash and the security panel when a group is selected', () => {
+    useUIStore.setState({ isTrashOpen: true, isSecurityPanelOpen: true });
+
+    useUIStore.getState().setSelectedGroup('group-1');
+
+    expect(useUIStore.getState()).toMatchObject({
+      isTrashOpen: false,
+      isSecurityPanelOpen: false,
+      selectedGroupId: 'group-1',
+    });
+  });
+
+  it('closes the trash when the security panel opens', () => {
+    useUIStore.setState({ isTrashOpen: true });
+
+    useUIStore.getState().openSecurityPanel();
+
+    expect(useUIStore.getState()).toMatchObject({
+      isSecurityPanelOpen: true,
+      isTrashOpen: false,
+    });
+  });
+
+  it('clears the trash flag on close without touching the selection', () => {
+    useUIStore.setState({ isTrashOpen: true, selectedGroupId: 'group-1' });
+
+    useUIStore.getState().closeTrash();
+
+    expect(useUIStore.getState()).toMatchObject({
+      isTrashOpen: false,
+      selectedGroupId: 'group-1',
     });
   });
 });

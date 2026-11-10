@@ -48,6 +48,7 @@ export const en: Record<string, string> = {
   'sidebar.addGroup': 'Add Group',
   'sidebar.lock': 'Lock',
   'sidebar.securityCheck': 'Security check',
+  'sidebar.trash': 'Trash',
   'sidebar.rename': 'Rename',
   'sidebar.delete': 'Delete',
 
@@ -264,6 +265,10 @@ export const en: Record<string, string> = {
   'settings.neverClear': 'Never clear',
   'settings.languageEn': 'English',
   'settings.languageZh': '简体中文',
+  'settings.trashRetention': 'Trash retention',
+  'settings.trashRetentionHint': 'Deleted items are removed permanently after this period. Choose Never to keep them until you empty the trash.',
+  'settings.trashRetentionNever': 'Never',
+  'settings.days': '{count} days',
 
   // change master password
   'changePassword.open': 'Change Master Password',
@@ -289,6 +294,26 @@ export const en: Record<string, string> = {
   'group.deleteItemsWarning': 'This will permanently delete {count} item(s) in this group.',
   'group.typeGroup': 'group',
   'group.typeItem': 'item',
+
+  // trash
+  'trash.title': 'Trash',
+  'trash.hint': 'Items are kept for {days} days, then removed automatically.',
+  'trash.hintNever': 'Items stay here until you delete them.',
+  'trash.empty': 'The trash is empty.',
+  'trash.restore': 'Restore',
+  'trash.purge': 'Delete forever',
+  'trash.emptyTrash': 'Empty trash',
+  'trash.purgeConfirm': 'Permanently delete "{name}"? This cannot be undone.',
+  'trash.emptyConfirm': 'Permanently delete all {count} items in the trash? This cannot be undone.',
+  'trash.deletedAt': 'Deleted {time}',
+  'trash.originalGroup': 'From {name}',
+  'trash.groupDeleted': 'Original group deleted',
+  'trash.deleteItemTitle': 'Move to trash?',
+  'trash.deleteItemBody': 'Move "{name}" to the trash? You can restore it later.',
+  'trash.deleteGroupTitle': 'Delete group?',
+  'trash.deleteGroupBody': 'Delete "{name}"? Its items will be moved to the trash.',
+  'trash.deleteGroupItemsWarning': '{count} item(s) will be moved to the trash.',
+  'trash.moveToTrash': 'Move to trash',
 
   // palette
   'palette.placeholder': 'Search and press Enter to copy...',

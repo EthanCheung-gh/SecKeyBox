@@ -20,6 +20,20 @@ export interface ItemSummary {
   updated_at: number;
 }
 
+/** One soft-deleted item as shown in the trash list. */
+export interface TrashItemSummary {
+  id: string;
+  title: string;
+  type: ItemSummary['type'];
+  icon?: string;
+  /** Unix seconds when the item was moved to the trash. */
+  deleted_at: number;
+  /** Group the item belonged to before it was trashed (kept after deletion). */
+  original_group_id?: string | null;
+  /** Name of `original_group_id` when that group still exists. */
+  original_group_name?: string | null;
+}
+
 export interface SecretHistoryEntry {
   field: string;
   value: string;
@@ -281,6 +295,8 @@ export type VaultError =
 /** Idle-lock policy owned by the Rust backend (persisted in vault_config). */
 export interface SecuritySettings {
   auto_lock_minutes: number;
+  /** Days a trashed item is kept before the automatic purge; `0` disables it. */
+  trash_retention_days: number;
 }
 
 /** Metadata for an encrypted per-item attachment (contents stay in the vault). */

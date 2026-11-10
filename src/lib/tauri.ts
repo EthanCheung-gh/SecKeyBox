@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag, BackupInfo } from '@/types';
+import type { Group, ItemSummary, ItemDetail, SecurityAudit, ImportToolsResult, TotpCode, SecuritySettings, AttachmentMeta, AttachmentData, AuditEntry, CustomField, Tag, BackupInfo, TrashItemSummary } from '@/types';
 
 export async function isVaultInitialized(): Promise<boolean> {
   return invoke<boolean>('is_vault_initialized');
@@ -230,6 +230,38 @@ export async function getSecuritySettings(): Promise<SecuritySettings> {
 /** `0` disables the idle lock. */
 export async function setAutoLockMinutes(minutes: number): Promise<void> {
   return invoke<void>('set_auto_lock_minutes', { minutes });
+}
+
+// --- Trash (soft-deleted items) ---
+
+/** Soft-deleted items, newest deletion first. Requires an unlocked vault. */
+export async function listTrash(): Promise<TrashItemSummary[]> {
+  return invoke<TrashItemSummary[]>('list_trash');
+}
+
+/** Sidebar badge count. Requires an unlocked vault. */
+export async function getTrashCount(): Promise<number> {
+  return invoke<number>('get_trash_count');
+}
+
+/** Move one trashed item back to its original (or fallback) group. */
+export async function restoreTrashItem(id: string): Promise<void> {
+  return invoke<void>('restore_item', { id });
+}
+
+/** Permanently delete one trashed item, including its detail rows. */
+export async function purgeTrashItem(id: string): Promise<void> {
+  return invoke<void>('purge_item', { id });
+}
+
+/** Permanently delete every trashed item; resolves to the removed count. */
+export async function emptyTrash(): Promise<number> {
+  return invoke<number>('empty_trash');
+}
+
+/** Set the automatic-purge window in days; `0` keeps items until purged. */
+export async function setTrashRetentionDays(days: number): Promise<void> {
+  return invoke<void>('set_trash_retention_days', { days });
 }
 
 // --- Attachments (encrypted with the vault key) ---
