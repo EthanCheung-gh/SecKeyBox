@@ -14,7 +14,13 @@ export function calculatePasswordStrength(password: string): StrengthResult {
 
   let score = 0;
 
-  score += Math.min(password.length * 4, 32);
+  score += Math.min(password.length * 4, 48);
+
+  // Length bonuses pick the highest tier only, so a longer password is not
+  // double-counted for passing several thresholds.
+  if (password.length >= 20) score += 15;
+  else if (password.length >= 16) score += 12;
+  else if (password.length >= 12) score += 8;
 
   if (/[a-z]/.test(password)) score += 5;
   if (/[A-Z]/.test(password)) score += 5;
