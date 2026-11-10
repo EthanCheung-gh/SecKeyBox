@@ -7,6 +7,7 @@ mod items;
 mod attachments;
 mod audit;
 mod metadata;
+mod trash;
 
 #[cfg(test)]
 mod tests;
@@ -20,3 +21,4 @@ pub use items::*;
 pub use attachments::*;
 pub use audit::*;
 pub use metadata::*;
+pub use trash::*;

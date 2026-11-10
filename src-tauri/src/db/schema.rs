@@ -1,7 +1,7 @@
 use crate::error::Result;
 use rusqlite::Connection;
 
-const SCHEMA_VERSION: i32 = 8;
+const SCHEMA_VERSION: i32 = 9;
 
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
@@ -24,7 +24,9 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             icon TEXT,
             is_favorite INTEGER DEFAULT 0,
             created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL
+            updated_at INTEGER NOT NULL,
+            deleted_at INTEGER,
+            original_group_id TEXT
         );
 
         CREATE TABLE IF NOT EXISTS account_items (
@@ -186,6 +188,7 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
         CREATE INDEX IF NOT EXISTS idx_items_group ON items(group_id);
         CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
         CREATE INDEX IF NOT EXISTS idx_items_favorite ON items(is_favorite);
+        CREATE INDEX IF NOT EXISTS idx_items_deleted ON items(deleted_at);
         "#,
     )
     .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
@@ -434,6 +437,39 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
         .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
     }
 
+    // Migration to version 9: item trash (soft delete). A fresh database gets
+    // both columns from init_schema, so each ALTER is guarded by a
+    // pragma_table_info probe — init_schema and run_migrations can then be run
+    // repeatedly without failing. `original_group_id` deliberately has no
+    // foreign key: it must keep pointing at a group that was deleted so a
+    // restore can still tell where the item came from. Any future rebuild of
+    // the `items` table must carry both columns over explicitly.
+    if version < 9 {
+        for (column, decl) in [("deleted_at", "INTEGER"), ("original_group_id", "TEXT")] {
+            let has_column: std::result::Result<i32, _> = conn.query_row(
+                &format!("SELECT 1 FROM pragma_table_info('items') WHERE name = '{column}'"),
+                [],
+                |_| Ok(1),
+            );
+            if has_column.is_err() {
+                conn.execute(&format!("ALTER TABLE items ADD COLUMN {column} {decl}"), [])
+                    .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+            }
+        }
+
+        conn.execute_batch(&format!(
+            r#"
+            BEGIN;
+            CREATE INDEX IF NOT EXISTS idx_items_deleted ON items(deleted_at);
+            INSERT OR IGNORE INTO groups (id, name, icon, sort_order, created_at, updated_at)
+            VALUES ('{}', 'Trash', '🗑️', 9999, strftime('%s','now'), strftime('%s','now'));
+            COMMIT;
+            "#,
+            super::types::TRASH_GROUP_ID
+        ))
+        .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+    }
+
     set_schema_version(conn, SCHEMA_VERSION)?;
     cleanup_orphan_items(conn)?;
     Ok(())
@@ -486,7 +522,7 @@ fn cleanup_orphan_items(conn: &Connection) -> Result<()> {
 }
 
 pub fn insert_builtin_groups(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
+    conn.execute_batch(&format!(
         r#"
         INSERT OR IGNORE INTO groups (id, name, icon, sort_order, created_at, updated_at)
         VALUES
@@ -497,9 +533,12 @@ pub fn insert_builtin_groups(conn: &Connection) -> Result<()> {
             ('built-in-servers', 'SSH Servers', '🖥️', 4, strftime('%s', 'now'), strftime('%s', 'now')),
             ('built-in-cloud', 'Cloud Credentials', '☁️', 5, strftime('%s', 'now'), strftime('%s', 'now')),
             ('built-in-licenses', 'Licenses', '📜', 6, strftime('%s', 'now'), strftime('%s', 'now')),
-            ('built-in-smtp', 'Email (SMTP)', '✉️', 7, strftime('%s', 'now'), strftime('%s', 'now'));
+            ('built-in-smtp', 'Email (SMTP)', '✉️', 7, strftime('%s', 'now'), strftime('%s', 'now')),
+            ('{}', 'Trash', '🗑️', 9999, strftime('%s', 'now'), strftime('%s', 'now'));
         "#,
-    ).map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
+        super::types::TRASH_GROUP_ID
+    ))
+    .map_err(|e| crate::error::VaultError::DatabaseError(e.to_string()))?;
 
     Ok(())
 }

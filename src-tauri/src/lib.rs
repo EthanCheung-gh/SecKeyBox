@@ -13,6 +13,7 @@ pub use db::{
     Group, ItemSummary, AccountItemDetail, ApiKeyItemDetail, EnvVarItemDetail, EnvVarPair, ItemDetail,
     DatabaseItemDetail, SshItemDetail, CloudItemDetail, LicenseItemDetail, SmtpItemDetail,
     DbConnection, open_connection, get_db_path, AttachmentMeta, CustomField, Tag,
+    TrashItemSummary,
 };
 
 /// Show, restore and focus the main window (tray click, menu item).
@@ -239,6 +240,11 @@ pub fn run() {
             get_item_tags,
             set_item_tags_cmd,
             get_items_by_tag_cmd,
+            list_trash,
+            get_trash_count,
+            restore_item,
+            purge_item,
+            empty_trash,
             create_backup,
             list_backups,
             delete_backup,

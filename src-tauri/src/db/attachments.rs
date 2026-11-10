@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use crate::error::{Result, VaultError};
 
+use super::items::ensure_active_item;
 use super::types::AttachmentMeta;
 use super::util::chrono_timestamp;
 
@@ -33,14 +34,8 @@ pub fn add_attachment(
         )));
     }
 
-    let exists: i64 = conn
-        .query_row("SELECT COUNT(*) FROM items WHERE id = ?1", [item_id], |row| {
-            row.get(0)
-        })
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
-    if exists == 0 {
-        return Err(VaultError::ItemNotFound);
-    }
+    // Trashed items are read-only until restored.
+    ensure_active_item(conn, item_id)?;
 
     let id = Uuid::new_v4().to_string();
     let now = chrono_timestamp();

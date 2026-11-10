@@ -103,9 +103,13 @@ pub fn load_item_detail(
     key: &[u8; 32],
 ) -> Result<ItemDetail> {
     let item_type: String = conn
-        .query_row("SELECT type FROM items WHERE id = ?1", [id], |row| {
-            row.get(0)
-        })
+        .query_row(
+            // Trashed items are not readable: they can only be restored or
+            // purged, so the CLI (`ipc`) answers `not_found` for them too.
+            "SELECT type FROM items WHERE id = ?1 AND deleted_at IS NULL",
+            [id],
+            |row| row.get(0),
+        )
         .map_err(|_| VaultError::ItemNotFound)?;
 
     match item_type.as_str() {

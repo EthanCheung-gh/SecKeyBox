@@ -7,6 +7,15 @@ use super::audit::log_event;
 use super::types::*;
 use super::util::{chrono_timestamp, hex_encode, item_title, with_tx};
 
+/// A missing or trashed item header must surface as `ItemNotFound` (the IPC
+/// layer maps that to `not_found`), not as a generic database error.
+fn item_header_missing(error: rusqlite::Error) -> VaultError {
+    match error {
+        rusqlite::Error::QueryReturnedNoRows => VaultError::ItemNotFound,
+        other => VaultError::DatabaseError(other.to_string()),
+    }
+}
+
 pub fn get_all_items(conn: &Connection) -> Result<Vec<ItemSummary>> {
     let mut stmt = conn
         .prepare(
@@ -28,6 +37,7 @@ pub fn get_all_items(conn: &Connection) -> Result<Vec<ItemSummary>> {
              LEFT JOIN cloud_items c ON i.id = c.item_id
              LEFT JOIN license_items l ON i.id = l.item_id
              LEFT JOIN smtp_items sm ON i.id = sm.item_id
+             WHERE i.deleted_at IS NULL
              ORDER BY i.title",
         )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
@@ -75,7 +85,7 @@ pub fn get_item_summary(conn: &Connection, id: &str) -> Result<Option<ItemSummar
              LEFT JOIN cloud_items c ON i.id = c.item_id
              LEFT JOIN license_items l ON i.id = l.item_id
              LEFT JOIN smtp_items sm ON i.id = sm.item_id
-             WHERE i.id = ?1",
+             WHERE i.id = ?1 AND i.deleted_at IS NULL",
         )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
 
@@ -123,7 +133,7 @@ pub fn get_items_by_group(conn: &Connection, group_id: &str) -> Result<Vec<ItemS
              LEFT JOIN cloud_items c ON i.id = c.item_id
              LEFT JOIN license_items l ON i.id = l.item_id
              LEFT JOIN smtp_items sm ON i.id = sm.item_id
-             WHERE i.group_id = ?1
+             WHERE i.group_id = ?1 AND i.deleted_at IS NULL
              ORDER BY i.title",
         )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
@@ -203,6 +213,7 @@ pub fn search_items(conn: &Connection, query: &str) -> Result<Vec<ItemSummary>> 
                  LEFT JOIN cloud_items c ON i.id = c.item_id
                  LEFT JOIN license_items l ON i.id = l.item_id
                  LEFT JOIN smtp_items sm ON i.id = sm.item_id
+                 WHERE i.deleted_at IS NULL
              )
              WHERE title LIKE ?1 ESCAPE '\\'
                 OR subtitle LIKE ?1 ESCAPE '\\'
@@ -239,11 +250,11 @@ pub fn get_account_item_detail(
 ) -> Result<AccountItemDetail> {
     let item: (String, String, String, Option<String>, bool, i64, i64) = conn
         .query_row(
-            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1",
+            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1 AND deleted_at IS NULL",
             [id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get::<_, i32>(4)? != 0, row.get(5)?, row.get(6)?)),
         )
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        .map_err(item_header_missing)?;
 
     let account: (
         String,
@@ -322,7 +333,7 @@ pub fn get_api_key_item_detail(
     let item: (String, String, String, Option<String>, bool, i64, i64) = conn
         .query_row(
             "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at 
-             FROM items WHERE id = ?1",
+             FROM items WHERE id = ?1 AND deleted_at IS NULL",
             [id],
             |row| {
                 Ok((
@@ -336,7 +347,7 @@ pub fn get_api_key_item_detail(
                 ))
             },
         )
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        .map_err(item_header_missing)?;
 
     let api_key: (String, Vec<u8>, [u8; 12], Option<String>, Option<String>, Option<String>, Option<i64>) = conn
         .query_row(
@@ -428,6 +439,7 @@ pub fn update_api_key_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
+    ensure_active_item(conn, id)?;
     let now = chrono_timestamp();
     if key_value.is_some() {
         archive_secret(conn, "api_key_items", id, "key_value_encrypted", "key_value_nonce", "key_value")?;
@@ -524,6 +536,7 @@ pub fn update_account_item(
     totp_secret: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
+    ensure_active_item(conn, id)?;
     let now = chrono_timestamp();
 
     if password.is_some() {
@@ -578,20 +591,59 @@ pub fn update_account_item(
     Ok(())
 }
 
+/// Soft delete: the item is stamped with `deleted_at`, remembers its group in
+/// `original_group_id` and is parked in the hidden trash group. Detail rows,
+/// attachments, custom fields, tag links and secret history stay in place so
+/// the item can be restored; only `purge_item` removes them for good.
+///
+/// Returns [`VaultError::ItemNotFound`] for an unknown id *and* for an item
+/// that is already in the trash (a second delete is a no-op, not a re-stamp).
 pub fn delete_item(conn: &Connection, id: &str) -> Result<()> {
     let title = item_title(conn, id);
-    conn.execute("DELETE FROM items WHERE id = ?1", [id])
+    let now = chrono_timestamp();
+
+    let affected = conn
+        .execute(
+            "UPDATE items
+             SET deleted_at = ?1, original_group_id = group_id, group_id = ?2, updated_at = ?1
+             WHERE id = ?3 AND deleted_at IS NULL",
+            params![now, TRASH_GROUP_ID, id],
+        )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
-    log_event(conn, "item.delete", Some(id), title.as_deref(), None);
+    if affected == 0 {
+        return Err(VaultError::ItemNotFound);
+    }
+
+    log_event(conn, "item.trash", Some(id), title.as_deref(), None);
+    Ok(())
+}
+
+/// Reject trashed and unknown items for every mutation path that must not
+/// touch the trash (updates, custom fields, tags, attachments).
+pub(super) fn ensure_active_item(conn: &Connection, id: &str) -> Result<()> {
+    let active: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM items WHERE id = ?1 AND deleted_at IS NULL",
+            [id],
+            |row| row.get(0),
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    if active == 0 {
+        return Err(VaultError::ItemNotFound);
+    }
     Ok(())
 }
 
 pub fn toggle_favorite(conn: &Connection, id: &str) -> Result<()> {
-    conn.execute(
-        "UPDATE items SET is_favorite = NOT is_favorite WHERE id = ?1",
-        [id],
-    )
-    .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    let affected = conn
+        .execute(
+            "UPDATE items SET is_favorite = NOT is_favorite WHERE id = ?1 AND deleted_at IS NULL",
+            [id],
+        )
+        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+    if affected == 0 {
+        return Err(VaultError::ItemNotFound);
+    }
     Ok(())
 }
 
@@ -603,7 +655,7 @@ pub fn get_env_var_item_detail(
     let item: (String, String, String, Option<String>, bool, i64, i64) = conn
         .query_row(
             "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at 
-             FROM items WHERE id = ?1",
+             FROM items WHERE id = ?1 AND deleted_at IS NULL",
             [id],
             |row| {
                 Ok((
@@ -617,7 +669,7 @@ pub fn get_env_var_item_detail(
                 ))
             },
         )
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        .map_err(item_header_missing)?;
 
     let notes: Option<String> = conn
         .query_row(
@@ -718,6 +770,7 @@ pub fn update_env_var_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
+    ensure_active_item(conn, id)?;
     let now = chrono_timestamp();
 
     conn.execute(
@@ -882,6 +935,7 @@ pub fn update_database_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
+    ensure_active_item(conn, id)?;
     let now = chrono_timestamp();
     if password.is_some() {
         archive_secret(conn, "database_items", id, "password_encrypted", "password_nonce", "password")?;
@@ -920,11 +974,11 @@ pub fn get_database_item_detail(
 ) -> Result<DatabaseItemDetail> {
     let item: (String, String, String, Option<String>, bool, i64, i64) = conn
         .query_row(
-            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1",
+            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1 AND deleted_at IS NULL",
             [id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get::<_, i32>(4)? != 0, row.get(5)?, row.get(6)?)),
         )
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        .map_err(item_header_missing)?;
 
     let db: (String, String, Option<i64>, Option<String>, Option<String>, Option<Vec<u8>>, Option<Vec<u8>>, Option<String>, Option<String>) = conn
         .query_row(
@@ -1048,6 +1102,7 @@ pub fn update_ssh_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
+    ensure_active_item(conn, id)?;
     let now = chrono_timestamp();
     if password.is_some() {
         archive_secret(conn, "ssh_items", id, "password_encrypted", "password_nonce", "password")?;
@@ -1117,11 +1172,11 @@ pub fn get_ssh_item_detail(
 ) -> Result<SshItemDetail> {
     let item: (String, String, String, Option<String>, bool, i64, i64) = conn
         .query_row(
-            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1",
+            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1 AND deleted_at IS NULL",
             [id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get::<_, i32>(4)? != 0, row.get(5)?, row.get(6)?)),
         )
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        .map_err(item_header_missing)?;
 
     let ssh: (String, Option<i64>, String, Option<Vec<u8>>, Option<Vec<u8>>, Option<String>, Option<Vec<u8>>, Option<Vec<u8>>, Option<String>) = conn
         .query_row(
@@ -1217,6 +1272,7 @@ pub fn update_cloud_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
+    ensure_active_item(conn, id)?;
     let now = chrono_timestamp();
     if secret.is_some() {
         archive_secret(conn, "cloud_items", id, "secret_encrypted", "secret_nonce", "secret")?;
@@ -1255,11 +1311,11 @@ pub fn get_cloud_item_detail(
 ) -> Result<CloudItemDetail> {
     let item: (String, String, String, Option<String>, bool, i64, i64) = conn
         .query_row(
-            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1",
+            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1 AND deleted_at IS NULL",
             [id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get::<_, i32>(4)? != 0, row.get(5)?, row.get(6)?)),
         )
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        .map_err(item_header_missing)?;
 
     let cloud: (String, String, Vec<u8>, [u8; 12], Option<String>, Option<String>) = conn
         .query_row(
@@ -1349,6 +1405,7 @@ pub fn update_license_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
+    ensure_active_item(conn, id)?;
     let now = chrono_timestamp();
     if license_key.is_some() {
         archive_secret(conn, "license_items", id, "license_key_encrypted", "license_key_nonce", "license_key")?;
@@ -1387,11 +1444,11 @@ pub fn get_license_item_detail(
 ) -> Result<LicenseItemDetail> {
     let item: (String, String, String, Option<String>, bool, i64, i64) = conn
         .query_row(
-            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1",
+            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1 AND deleted_at IS NULL",
             [id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get::<_, i32>(4)? != 0, row.get(5)?, row.get(6)?)),
         )
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        .map_err(item_header_missing)?;
 
     let license: (String, Vec<u8>, [u8; 12], Option<String>, Option<i64>, Option<String>) = conn
         .query_row(
@@ -1485,6 +1542,7 @@ pub fn update_smtp_item(
     notes: Option<&str>,
     key: &[u8; 32],
 ) -> Result<()> {
+    ensure_active_item(conn, id)?;
     let now = chrono_timestamp();
     if password.is_some() {
         archive_secret(conn, "smtp_items", id, "password_encrypted", "password_nonce", "password")?;
@@ -1523,11 +1581,11 @@ pub fn get_smtp_item_detail(
 ) -> Result<SmtpItemDetail> {
     let item: (String, String, String, Option<String>, bool, i64, i64) = conn
         .query_row(
-            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1",
+            "SELECT id, group_id, title, icon, is_favorite, created_at, updated_at FROM items WHERE id = ?1 AND deleted_at IS NULL",
             [id],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get::<_, i32>(4)? != 0, row.get(5)?, row.get(6)?)),
         )
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
+        .map_err(item_header_missing)?;
 
     let smtp: (String, Option<i64>, Option<String>, Option<String>, Vec<u8>, [u8; 12], Option<String>, Option<String>) = conn
         .query_row(

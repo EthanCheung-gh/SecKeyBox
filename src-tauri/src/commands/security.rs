@@ -11,6 +11,8 @@ const CONFIG_KEY: &str = "auto_lock_minutes";
 #[derive(Debug, Clone, Serialize)]
 pub struct SecuritySettings {
     pub auto_lock_minutes: i64,
+    /// Days a trashed item is kept before the automatic purge; `0` disables it.
+    pub trash_retention_days: i64,
 }
 
 fn read_auto_lock_minutes(conn: &rusqlite::Connection) -> Option<i64> {
@@ -38,18 +40,22 @@ pub fn get_security_settings(
     db: State<DbConnection>,
     vault_state: State<VaultState>,
 ) -> Result<SecuritySettings> {
-    let minutes = {
+    let (minutes, trash_retention_days) = {
         let conn = db
             .inner()
             .0
             .lock()
             .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
-        read_auto_lock_minutes(&conn).unwrap_or(DEFAULT_AUTO_LOCK_MINUTES)
+        (
+            read_auto_lock_minutes(&conn).unwrap_or(DEFAULT_AUTO_LOCK_MINUTES),
+            crate::db::trash_retention_days(&conn),
+        )
     };
     let minutes = minutes.max(0);
     vault_state.set_auto_lock_minutes(minutes);
     Ok(SecuritySettings {
         auto_lock_minutes: minutes,
+        trash_retention_days,
     })
 }
 

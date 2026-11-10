@@ -3,6 +3,7 @@ use rusqlite::Connection;
 use super::*;
 use crate::crypto::{decrypt, derive_key};
 use crate::db::{init_schema, insert_builtin_groups, run_migrations};
+use crate::error::VaultError;
 
 fn seeded_conn() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
@@ -254,7 +255,8 @@ fn second_launch_can_open_items_created_in_first_launch() {
 }
 
 #[test]
-fn delete_group_cascades_items_and_details_for_any_group() {        let conn = seeded_conn();
+fn delete_group_trashes_items_and_keeps_their_details() {
+    let conn = seeded_conn();
     let key = derive_key("some-password-1", None).unwrap().key;
 
     // Custom group with an item.
@@ -269,16 +271,37 @@ fn delete_group_cascades_items_and_details_for_any_group() {        let conn = s
 
     delete_group(&conn, &custom.id).unwrap();
     assert!(get_all_groups(&conn).unwrap().iter().all(|g| g.id != custom.id));
+    // The item is no longer active, but it is not destroyed either.
     assert!(get_all_items(&conn).unwrap().iter().all(|i| i.id != custom_item));
-    let orphans: i64 = conn
+    let detail_rows: i64 = conn
         .query_row("SELECT COUNT(*) FROM account_items WHERE item_id = ?1", [&custom_item], |r| r.get(0))
         .unwrap();
-    assert_eq!(orphans, 0, "detail row must cascade with its item");
+    assert_eq!(detail_rows, 1, "detail row must survive a group delete");
 
-    // Built-in groups are deletable too.
+    let trash = list_trash(&conn).unwrap();
+    assert_eq!(trash.len(), 1);
+    assert_eq!(trash[0].id, custom_item);
+    assert_eq!(trash[0].original_group_id.as_deref(), Some(custom.id.as_str()));
+    assert!(
+        trash[0].original_group_name.is_none(),
+        "the deleted group has no name to show"
+    );
+
+    // Restoring falls back to the built-in group of the item type.
+    restore_item(&conn, &custom_item).unwrap();
+    let items = get_all_items(&conn).unwrap();
+    let restored = items.iter().find(|i| i.id == custom_item).unwrap();
+    assert_eq!(restored.group_id, "built-in-accounts");
+    assert_eq!(
+        get_account_item_detail(&conn, &custom_item, &key).unwrap().password,
+        "pw"
+    );
+
+    // Built-in groups are deletable too; their items are trashed as well.
     delete_group(&conn, "built-in-accounts").unwrap();
     assert!(get_all_groups(&conn).unwrap().iter().all(|g| g.id != "built-in-accounts"));
     assert!(get_all_items(&conn).unwrap().iter().all(|i| i.id != builtin_item));
+    assert!(list_trash(&conn).unwrap().iter().any(|i| i.id == builtin_item));
 }
 
 #[test]
@@ -384,8 +407,17 @@ fn custom_fields_are_encrypted_and_replaced() {
     // Empty keys are rejected.
     assert!(save_custom_fields(&conn, &id, &[(" ".to_string(), "x".to_string())], &key).is_err());
 
-    // Cascade with the item.
+    // Custom fields survive a soft delete so a restore keeps them, and only go
+    // away with a permanent purge.
+    save_custom_fields(&conn, &id, &[("region".to_string(), "cn-north-1".to_string())], &key)
+        .unwrap();
     delete_item(&conn, &id).unwrap();
+    let kept: i64 = conn
+        .query_row("SELECT COUNT(*) FROM custom_fields WHERE item_id = ?1", [&id], |r| r.get(0))
+        .unwrap();
+    assert_eq!(kept, 1, "trashing must keep custom fields for a later restore");
+
+    purge_item(&conn, &id).unwrap();
     let remaining: i64 = conn
         .query_row("SELECT COUNT(*) FROM custom_fields WHERE item_id = ?1", [&id], |r| r.get(0))
         .unwrap();
@@ -436,7 +468,7 @@ fn audit_log_records_events_newest_first() {
     let id = create_account_item(&conn, "built-in-accounts", "Doomed", "u", "pw", None, None, None, &key).unwrap();
     delete_item(&conn, &id).unwrap();
     let entries = list_audit_log(&conn, 10).unwrap();
-    assert_eq!(entries[0].event, "item.delete");
+    assert_eq!(entries[0].event, "item.trash");
     assert_eq!(entries[0].item_title.as_deref(), Some("Doomed"));
 }
 
@@ -505,8 +537,19 @@ fn attachments_are_encrypted_and_scoped_to_their_item() {
     assert!(get_attachment_data(&conn, &other_id, &meta.id, &key).is_err());
     assert!(delete_attachment(&conn, &other_id, &meta.id).is_err());
 
-    // Attachments cascade with their item.
+    // Attachments survive a soft delete (a restore must keep them intact) and
+    // only cascade away on a permanent purge.
     delete_item(&conn, &item_id).unwrap();
+    let kept: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM item_attachments WHERE item_id = ?1",
+            [&item_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(kept, 1, "trashing must keep attachments for a later restore");
+
+    purge_item(&conn, &item_id).unwrap();
     let remaining: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM item_attachments WHERE item_id = ?1",
@@ -515,4 +558,365 @@ fn attachments_are_encrypted_and_scoped_to_their_item() {
         )
         .unwrap();
     assert_eq!(remaining, 0);
+}
+
+// ---------- trash / soft delete ----------
+
+#[test]
+fn soft_delete_hides_item_and_restore_returns_it_to_its_group() {
+    let conn = seeded_conn();
+    let key = derive_key("trash-password-1", None).unwrap().key;
+    let group = create_group(&conn, "Work", None, None, None).unwrap();
+    let id = create_account_item(
+        &conn, &group.id, "GitHub", "octocat", "pw", None, None, None, &key,
+    )
+    .unwrap();
+
+    delete_item(&conn, &id).unwrap();
+
+    // Every active read path must hide the trashed item.
+    assert!(get_all_items(&conn).unwrap().is_empty());
+    assert!(search_items(&conn, "GitHub").unwrap().is_empty());
+    assert!(get_items_by_group(&conn, &group.id).unwrap().is_empty());
+    assert!(get_item_summary(&conn, &id).unwrap().is_none());
+    assert_eq!(get_trash_count(&conn).unwrap(), 1);
+
+    let trash = list_trash(&conn).unwrap();
+    assert_eq!(trash.len(), 1);
+    assert_eq!(trash[0].id, id);
+    assert_eq!(trash[0].title, "GitHub");
+    assert_eq!(trash[0].item_type, "account");
+    assert_eq!(trash[0].original_group_id.as_deref(), Some(group.id.as_str()));
+    assert_eq!(trash[0].original_group_name.as_deref(), Some("Work"));
+    assert!(trash[0].deleted_at > 0);
+
+    // The row and its detail survived; only the detail getter is guarded.
+    let details: i64 = conn
+        .query_row("SELECT COUNT(*) FROM account_items WHERE item_id = ?1", [&id], |r| r.get(0))
+        .unwrap();
+    assert_eq!(details, 1);
+    assert!(matches!(
+        get_account_item_detail(&conn, &id, &key),
+        Err(VaultError::ItemNotFound)
+    ));
+
+    restore_item(&conn, &id).unwrap();
+    let items = get_all_items(&conn).unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].group_id, group.id);
+    assert_eq!(get_trash_count(&conn).unwrap(), 0);
+    assert_eq!(get_account_item_detail(&conn, &id, &key).unwrap().password, "pw");
+}
+
+#[test]
+fn restore_falls_back_to_any_group_when_builtin_groups_are_gone() {
+    let conn = seeded_conn();
+    let key = derive_key("fallback-password", None).unwrap().key;
+    let custom = create_group(&conn, "Team", None, None, None).unwrap();
+    let id = create_account_item(&conn, &custom.id, "Acc", "u", "pw", None, None, None, &key)
+        .unwrap();
+
+    // Drop the group the item lived in and its type fallback.
+    delete_group(&conn, &custom.id).unwrap();
+    delete_group(&conn, "built-in-accounts").unwrap();
+    assert_eq!(get_trash_count(&conn).unwrap(), 1);
+
+    restore_item(&conn, &id).unwrap();
+    let restored = get_item_summary(&conn, &id).unwrap().unwrap();
+    let groups = get_all_groups(&conn).unwrap();
+    assert_eq!(restored.group_id, "built-in-api-keys", "first remaining non-trash group");
+    assert!(groups.iter().any(|g| g.id == restored.group_id));
+
+    // Unknown/never-trashed ids are rejected.
+    assert!(matches!(restore_item(&conn, &id), Err(VaultError::ItemNotFound)));
+}
+
+#[test]
+fn purge_item_and_empty_trash_cascade_details() {
+    let conn = seeded_conn();
+    let key = derive_key("purge-password-1", None).unwrap().key;
+    let account =
+        create_account_item(&conn, "built-in-accounts", "A", "u", "pw", None, None, None, &key)
+            .unwrap();
+    let api_key =
+        create_api_key_item(&conn, "built-in-api-keys", "B", "K", "secret", None, None, None, &key)
+            .unwrap();
+    let live =
+        create_cloud_item(&conn, "built-in-cloud", "C", "aws", "AKIA", "s", None, None, &key).unwrap();
+
+    delete_item(&conn, &account).unwrap();
+    delete_item(&conn, &api_key).unwrap();
+    assert_eq!(get_trash_count(&conn).unwrap(), 2);
+
+    purge_item(&conn, &account).unwrap();
+    let account_rows: i64 = conn
+        .query_row("SELECT COUNT(*) FROM account_items WHERE item_id = ?1", [&account], |r| r.get(0))
+        .unwrap();
+    assert_eq!(account_rows, 0, "purge must cascade the detail row");
+    assert_eq!(get_trash_count(&conn).unwrap(), 1);
+
+    // Only trashed rows may be purged, and only once.
+    assert!(matches!(purge_item(&conn, &account), Err(VaultError::ItemNotFound)));
+    assert!(matches!(purge_item(&conn, &live), Err(VaultError::ItemNotFound)));
+    assert!(get_item_summary(&conn, &live).unwrap().is_some(), "live item untouched");
+
+    assert_eq!(empty_trash(&conn).unwrap(), 1);
+    let api_rows: i64 = conn
+        .query_row("SELECT COUNT(*) FROM api_key_items WHERE item_id = ?1", [&api_key], |r| r.get(0))
+        .unwrap();
+    assert_eq!(api_rows, 0);
+    assert_eq!(get_trash_count(&conn).unwrap(), 0);
+    assert_eq!(empty_trash(&conn).unwrap(), 0);
+
+    let events: Vec<String> = list_audit_log(&conn, 50)
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.event)
+        .collect();
+    for event in ["item.trash", "item.purge", "trash.empty"] {
+        assert!(events.iter().any(|e| e == event), "missing audit event {event}");
+    }
+}
+
+#[test]
+fn purge_expired_trash_respects_the_retention_window() {
+    let conn = seeded_conn();
+    let key = derive_key("retention-password", None).unwrap().key;
+    let old =
+        create_account_item(&conn, "built-in-accounts", "Old", "u", "pw", None, None, None, &key)
+            .unwrap();
+    let recent =
+        create_account_item(&conn, "built-in-accounts", "Recent", "u", "pw", None, None, None, &key)
+            .unwrap();
+
+    delete_item(&conn, &old).unwrap();
+    delete_item(&conn, &recent).unwrap();
+    conn.execute(
+        "UPDATE items SET deleted_at = strftime('%s','now') - 31*86400 WHERE id = ?1",
+        [&old],
+    )
+    .unwrap();
+    conn.execute(
+        "UPDATE items SET deleted_at = strftime('%s','now') - 29*86400 WHERE id = ?1",
+        [&recent],
+    )
+    .unwrap();
+
+    assert_eq!(trash_retention_days(&conn), 30, "defaults to 30 days");
+    assert_eq!(purge_expired_trash(&conn).unwrap(), 1);
+    let remaining = list_trash(&conn).unwrap();
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].id, recent);
+
+    // Retention 0 disables the automatic purge entirely.
+    set_retention(&conn, "0");
+    assert_eq!(trash_retention_days(&conn), 0);
+    conn.execute(
+        "UPDATE items SET deleted_at = strftime('%s','now') - 400*86400 WHERE id = ?1",
+        [&recent],
+    )
+    .unwrap();
+    assert_eq!(purge_expired_trash(&conn).unwrap(), 0);
+    assert_eq!(get_trash_count(&conn).unwrap(), 1);
+
+    // Absurd values are clamped instead of disabling the purge silently.
+    set_retention(&conn, "99999");
+    assert_eq!(trash_retention_days(&conn), MAX_TRASH_RETENTION_DAYS);
+    set_retention(&conn, "not-a-number");
+    assert_eq!(trash_retention_days(&conn), DEFAULT_TRASH_RETENTION_DAYS);
+}
+
+fn set_retention(conn: &Connection, value: &str) {
+    conn.execute(
+        "INSERT OR REPLACE INTO vault_config (key, value) VALUES ('trash_retention_days', ?1)",
+        [value],
+    )
+    .unwrap();
+}
+
+#[test]
+fn trashed_items_reject_updates_reads_and_side_writes() {
+    let conn = seeded_conn();
+    let key = derive_key("guard-password", None).unwrap().key;
+    let id = create_account_item(&conn, "built-in-accounts", "Acc", "u", "pw", None, None, None, &key)
+        .unwrap();
+    let tag = create_tag(&conn, "prod", None).unwrap();
+
+    delete_item(&conn, &id).unwrap();
+
+    assert!(matches!(
+        update_account_item(&conn, &id, "T", "u", None, None, None, None, &key),
+        Err(VaultError::ItemNotFound)
+    ));
+    assert!(matches!(toggle_favorite(&conn, &id), Err(VaultError::ItemNotFound)));
+    assert!(matches!(
+        get_account_item_detail(&conn, &id, &key),
+        Err(VaultError::ItemNotFound)
+    ));
+    assert!(
+        matches!(delete_item(&conn, &id), Err(VaultError::ItemNotFound)),
+        "a second delete must not re-stamp the trash entry"
+    );
+    assert!(matches!(
+        save_custom_fields(&conn, &id, &[("k".to_string(), "v".to_string())], &key),
+        Err(VaultError::ItemNotFound)
+    ));
+    assert!(matches!(
+        set_item_tags(&conn, &id, &[tag.id.clone()]),
+        Err(VaultError::ItemNotFound)
+    ));
+    assert!(matches!(
+        add_attachment(&conn, &id, "id_ed25519", None, b"key", &key),
+        Err(VaultError::ItemNotFound)
+    ));
+
+    // Restoring clears both trash columns and re-enables the item.
+    restore_item(&conn, &id).unwrap();
+    let restored = get_item_summary(&conn, &id).unwrap().unwrap();
+    assert_eq!(restored.group_id, "built-in-accounts");
+    let (deleted_at, original): (Option<i64>, Option<String>) = conn
+        .query_row(
+            "SELECT deleted_at, original_group_id FROM items WHERE id = ?1",
+            [&id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert!(deleted_at.is_none() && original.is_none());
+    toggle_favorite(&conn, &id).unwrap();
+}
+
+#[test]
+fn trash_group_is_hidden_and_immutable() {
+    let conn = seeded_conn();
+
+    assert!(
+        get_all_groups(&conn).unwrap().iter().all(|g| g.id != TRASH_GROUP_ID),
+        "the trash group must not show up in the sidebar"
+    );
+    assert!(get_all_groups(&conn).unwrap().len() == 8);
+
+    assert!(matches!(
+        update_group(&conn, TRASH_GROUP_ID, "Renamed", None, None),
+        Err(VaultError::Validation(_))
+    ));
+    assert!(matches!(
+        delete_group(&conn, TRASH_GROUP_ID),
+        Err(VaultError::Validation(_))
+    ));
+
+    // The row itself is still there for soft-deleted items to point at.
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM groups WHERE id = ?1", [TRASH_GROUP_ID], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+}
+
+#[test]
+fn schema_v9_is_idempotent_and_adds_trash_columns() {
+    let conn = Connection::open_in_memory().unwrap();
+    for _ in 0..2 {
+        init_schema(&conn).unwrap();
+        run_migrations(&conn).unwrap();
+        insert_builtin_groups(&conn).unwrap();
+    }
+
+    assert_eq!(get_schema_version(&conn).unwrap(), 9);
+    for column in ["deleted_at", "original_group_id"] {
+        let exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name = ?1",
+                [column],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(exists, 1, "items.{column} is missing");
+    }
+    let index: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_items_deleted'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(index, 1);
+    let groups: i64 = conn
+        .query_row("SELECT COUNT(*) FROM groups", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(groups, 9, "8 built-in groups plus the trash group");
+
+    // Re-running the guarded `version < 9` branch (a v8 database that already
+    // has the columns, e.g. after init_schema) must not fail either.
+    conn.execute(
+        "INSERT OR REPLACE INTO vault_config (key, value) VALUES ('schema_version', '8')",
+        [],
+    )
+    .unwrap();
+    run_migrations(&conn).unwrap();
+    assert_eq!(get_schema_version(&conn).unwrap(), 9);
+}
+
+#[test]
+fn migration_adds_trash_columns_to_a_v8_database() {
+    let conn = Connection::open_in_memory().unwrap();
+    init_schema(&conn).unwrap();
+    insert_builtin_groups(&conn).unwrap();
+    enable_foreign_keys(&conn).unwrap();
+
+    // Rebuild `items` without the v9 columns to mimic a database created by
+    // the previous schema version, then drop the trash group.
+    conn.execute_batch(
+        r#"
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE items_v8 (
+            id TEXT PRIMARY KEY,
+            group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+            type TEXT NOT NULL CHECK(type IN ('account', 'api_key', 'env_var', 'database', 'ssh', 'cloud', 'license', 'smtp')),
+            title TEXT NOT NULL,
+            icon TEXT,
+            is_favorite INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        INSERT INTO items_v8 (id, group_id, type, title, icon, is_favorite, created_at, updated_at)
+            SELECT id, group_id, type, title, icon, is_favorite, created_at, updated_at FROM items;
+        DROP TABLE items;
+        ALTER TABLE items_v8 RENAME TO items;
+        DROP INDEX IF EXISTS idx_items_deleted;
+        DELETE FROM groups WHERE id = 'built-in-trash';
+        INSERT OR REPLACE INTO vault_config (key, value) VALUES ('schema_version', '8');
+        PRAGMA foreign_keys = ON;
+        "#,
+    )
+    .unwrap();
+
+    let before: i64 = conn
+        .query_row("SELECT COUNT(*) FROM pragma_table_info('items') WHERE name = 'deleted_at'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(before, 0, "v8 baseline must not have the trash column");
+
+    run_migrations(&conn).unwrap();
+
+    for column in ["deleted_at", "original_group_id"] {
+        let exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name = ?1",
+                [column],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(exists, 1, "items.{column} was not added by the migration");
+    }
+    let index: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_items_deleted'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(index, 1);
+    let trash_group: i64 = conn
+        .query_row("SELECT COUNT(*) FROM groups WHERE id = 'built-in-trash'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(trash_group, 1, "migration must (re)create the trash group");
+    assert_eq!(get_schema_version(&conn).unwrap(), 9);
 }

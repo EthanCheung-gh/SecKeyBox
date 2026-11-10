@@ -10,6 +10,7 @@ mod security;
 mod attachments;
 mod metadata;
 mod backup;
+mod trash;
 
 pub use vault::*;
 pub use groups::*;
@@ -24,3 +25,4 @@ pub use security::*;
 pub use attachments::*;
 pub use metadata::*;
 pub use backup::*;
+pub use trash::*;

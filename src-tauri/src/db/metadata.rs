@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::error::{Result, VaultError};
 
 use super::audit::log_event;
-use super::items::get_item_summary;
+use super::items::{ensure_active_item, get_item_summary};
 use super::types::{CustomField, ItemSummary, Tag};
 use super::util::{chrono_timestamp, item_title};
 
@@ -51,12 +51,8 @@ pub fn save_custom_fields(
     fields: &[(String, String)],
     key: &[u8; 32],
 ) -> Result<()> {
-    let exists: i64 = conn
-        .query_row("SELECT COUNT(*) FROM items WHERE id = ?1", [item_id], |row| row.get(0))
-        .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
-    if exists == 0 {
-        return Err(VaultError::ItemNotFound);
-    }
+    // Trashed items are read-only until restored.
+    ensure_active_item(conn, item_id)?;
 
     conn.execute("DELETE FROM custom_fields WHERE item_id = ?1", [item_id])
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
@@ -157,6 +153,7 @@ pub fn get_item_tag_ids(conn: &Connection, item_id: &str) -> Result<Vec<String>>
 }
 
 pub fn set_item_tags(conn: &Connection, item_id: &str, tag_ids: &[String]) -> Result<()> {
+    ensure_active_item(conn, item_id)?;
     conn.execute("DELETE FROM item_tags WHERE item_id = ?1", [item_id])
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;
     for tag_id in tag_ids {
@@ -174,7 +171,7 @@ pub fn get_items_by_tag(conn: &Connection, tag_id: &str) -> Result<Vec<ItemSumma
         .prepare(
             "SELECT i.id FROM items i
              JOIN item_tags it ON it.item_id = i.id
-             WHERE it.tag_id = ?1
+             WHERE it.tag_id = ?1 AND i.deleted_at IS NULL
              ORDER BY i.title",
         )
         .map_err(|e| VaultError::DatabaseError(e.to_string()))?;

@@ -104,6 +104,14 @@ pub fn unlock_vault(
     // One snapshot per day, produced after the vault is readable.
     crate::commands::backup::ensure_daily_backup(&app_handle, &conn);
 
+    // Drop trash entries past the retention window. Runs after the backup so
+    // the snapshot still contains them; a failure must never block unlocking.
+    match crate::db::purge_expired_trash(&conn) {
+        Ok(0) => {}
+        Ok(purged) => eprintln!("[INFO] unlock_vault: purged {purged} expired trash item(s)"),
+        Err(e) => eprintln!("[WARN] unlock_vault: trash auto-purge failed: {:?}", e),
+    }
+
     Ok(true)
 }
 

@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+/// Placeholder group that owns soft-deleted items. It is hidden from
+/// `get_all_groups` and cannot be edited or deleted.
+pub const TRASH_GROUP_ID: &str = "built-in-trash";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttachmentMeta {
     pub id: String,
@@ -241,4 +245,21 @@ pub struct Tag {
     pub name: String,
     pub color: Option<String>,
     pub created_at: i64,
+}
+
+/// One soft-deleted item as shown in the trash list.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrashItemSummary {
+    pub id: String,
+    pub title: String,
+    #[serde(rename = "type")]
+    pub item_type: String,
+    pub icon: Option<String>,
+    /// Unix seconds when the item was moved to the trash.
+    pub deleted_at: i64,
+    /// Group the item belonged to before it was trashed; kept even after that
+    /// group has been deleted so the restore can explain the fallback.
+    pub original_group_id: Option<String>,
+    /// Name of `original_group_id` when the group still exists.
+    pub original_group_name: Option<String>,
 }

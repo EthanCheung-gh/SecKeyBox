@@ -269,7 +269,9 @@ fn resolve_item_id(
         _ => return Ok(Err(error("name_required"))),
     };
 
-    let mut stmt = match conn.prepare("SELECT id, title, type FROM items WHERE title = ?1") {
+    // Trashed items are invisible to the CLI: resolving a trashed title must
+    // look exactly like an unknown name (`not_found`).
+    let mut stmt = match conn.prepare("SELECT id, title, type FROM items WHERE title = ?1 AND deleted_at IS NULL") {
         Ok(stmt) => stmt,
         Err(_) => return Err(error("internal")),
     };
