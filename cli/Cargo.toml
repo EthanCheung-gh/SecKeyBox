@@ -1,6 +1,6 @@
 [package]
 name = "seckeybox-cli"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 description = "Command-line client for the SecKeyBox local socket"
 license = "MIT"
