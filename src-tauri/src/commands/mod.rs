@@ -12,6 +12,7 @@ mod metadata;
 mod backup;
 mod trash;
 mod duplicates;
+mod app;
 
 pub use vault::*;
 pub use groups::*;
@@ -28,3 +29,4 @@ pub use metadata::*;
 pub use backup::*;
 pub use trash::*;
 pub use duplicates::*;
+pub use app::*;

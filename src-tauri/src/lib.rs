@@ -253,6 +253,7 @@ pub fn run() {
             list_backups,
             delete_backup,
             restore_backup,
+            restart_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

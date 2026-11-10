@@ -58,7 +58,7 @@ Developer credentials do not fit the "website + password" model of classic passw
 | Duplicate cleanup | Groups active items by type plus identity fields (account username + website host, SSH user@host:port, API key name + endpoint, …), keeps the copy you choose, carries its tags, attachments, custom fields and secret history over, and moves the rest to the trash |
 | Tray resident | Closing the window keeps SecKeyBox running in the system tray (Show / Lock / Quit); the global hotkey and idle lock keep working |
 | Session safety | Configurable auto-lock (off / 1 / 5 / 15 / 30 min, enforced by the app process even while the window is hidden) and clipboard auto-clear (0 / 15 / 30 / 60 s); keys are zeroized on drop |
-| In-app updates | Signed GitHub Release updates from `Settings → Updates`: each update is verified against the embedded minisign public key before it is downloaded, installed and the app restarted |
+| In-app updates | Signed GitHub Release updates from `Settings → Updates`: each update is verified against the embedded minisign public key before it is downloaded, installed and the app restarted (Linux AppImage restarts are handled: the restart command clears the stale AppImage environment and the release AppImage ships a patched `AppRun`) |
 | Appearance | Light / dark / follow-system theme |
 
 Notes are stored as plain text by design; all password/key/secret fields are encrypted.

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Patched AppRun for in-app updates: the previous AppImage mount's
+# LD_LIBRARY_PATH can make /usr/bin/env load an incompatible libsystemd.
+set -e
+unset LD_LIBRARY_PATH LD_PRELOAD
+this_dir="$(readlink -f "$(dirname "$0")")"
+source "$this_dir"/apprun-hooks/"linuxdeploy-plugin-gtk.sh"
+exec "$this_dir"/AppRun.wrapped "$@"

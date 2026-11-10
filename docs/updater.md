@@ -81,6 +81,60 @@ back to `false` would publish releases the updater can never install.
 3. On confirmation it downloads the bundle, verifies the signature against
    the embedded public key, installs it and offers a restart.
 
+## 5. Linux AppImage restart
+
+Restarting into a freshly installed AppImage used to fail with
+
+```
+/usr/bin/env: /tmp/.mount_.../usr/lib/libsystemd.so.0: version 'LIBSYSTEMD_254' not found
+```
+
+The old AppImage mount leaks `LD_LIBRARY_PATH` (and `APPDIR`/`APPIMAGE`/
+`ARGV0`) into the relaunched process. The stock linuxdeploy `AppRun` starts
+with `#!/usr/bin/env bash`, so `/usr/bin/env` resolves `bash` through the old
+mount's library path, loads the old mount's `libsystemd`, and the new AppImage
+never starts. The fix has two layers because the *old* client performs the
+relaunch — a fix that only lives in the new binary cannot help the first hop.
+
+**Layer 1 — `restart_app` clears the environment (onwards).**
+
+`Settings → Updates → Restart now` no longer calls the process plugin's
+`relaunch`. It invokes the Rust command `restart_app`
+(`src-tauri/src/commands/app.rs`), which — when `APPIMAGE` is set — unsets
+`LD_LIBRARY_PATH`, `LD_PRELOAD`, `APPDIR`, `APPIMAGE` and `ARGV0` and then
+calls `app.restart()`. The new AppImage runtime exports its own values on
+start-up, so every update from a client that has this command works without
+any release-side patching.
+
+**Layer 2 — the release AppImage's `AppRun` is patched and re-signed (the
+first hop).**
+
+When you are running an older AppImage (one that still calls `relaunch`), that
+old client does the restart, so v0.6.2's `restart_app` never runs. The v0.6.2
+AppImage itself must therefore be launchable from the leaking environment:
+
+- `.github/appimage/AppRun` is a patched copy of the linuxdeploy `AppRun`
+  script. It uses `#!/bin/bash` (no `/usr/bin/env` indirection), unsets
+  `LD_LIBRARY_PATH`/`LD_PRELOAD`, sources the GTK hook and then
+  `exec`s `AppRun.wrapped`.
+- The `patch-appimage` job in `.github/workflows/release.yml` runs after the
+  whole build matrix: it downloads the published `SecKeyBox_*_amd64.AppImage`,
+  `--appimage-extract`s it, drops in the patched `AppRun`, repacks with
+  `appimagetool`, re-signs with `tauri signer sign`, rewrites the
+  `linux-x86_64` and `linux-x86_64-appimage` signatures in `latest.json`
+  (deb/rpm/Windows/macOS entries are untouched), asserts the manifest
+  signatures equal the new `.sig`, re-extracts the result to confirm the
+  first line of `AppRun` is `#!/bin/bash`, and finally
+  `gh release upload --clobber`s the AppImage, its `.sig` and `latest.json`.
+
+Because the patched AppRun strips the stale environment before bash starts,
+the old client's relaunch succeeds; from then on `restart_app` keeps it
+correct without touching releases.
+
+If you rebuild the AppImage by hand, keep the patched `AppRun` executable
+inside the AppDir and re-sign afterwards — otherwise the updater refuses the
+artifact (signature) or the restart keeps failing (AppRun).
+
 ## Notes
 
 - Updates are refused if the signature does not match the embedded public

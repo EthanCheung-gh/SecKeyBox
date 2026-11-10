@@ -63,3 +63,29 @@ jobs:
             (`.msi`/`.exe` Windows, `.dmg`/`.app` macOS, `.deb`/`.AppImage`/`.rpm` Linux).
           releaseDraft: false
           prerelease: false
+
+  # The released AppImage needs its AppRun patched before older clients can
+  # hand over to it (see docs/updater.md). This runs after the whole matrix so
+  # it rewrites the final assets and latest.json with no race.
+  patch-appimage:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Patch AppRun, re-sign and update latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bash .github/scripts/patch-appimage.sh

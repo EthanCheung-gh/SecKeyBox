@@ -1,5 +1,5 @@
 import { check, type Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
+import { invoke } from '@tauri-apps/api/core';
 
 export type UpdateStatus =
   | { kind: 'idle' }
@@ -48,5 +48,5 @@ export async function installUpdate(
 
 /** Restart the app so the installed update takes effect. */
 export async function restartApp(): Promise<void> {
-  await relaunch();
+  await invoke('restart_app');
 }
