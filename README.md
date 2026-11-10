@@ -40,7 +40,7 @@ Developer credentials do not fit the "website + password" model of classic passw
 | Purpose-built fields | e.g. Database: type/host/port/DB name/user/password/connection URL; SSH: host/port/user/password/key path/key passphrase |
 | Encryption | Per-field AES-256-GCM with a random nonce; key derived from your master password with Argon2id (m=64 MB, t=3, p=4) |
 | Master password change | Verifies the current password, derives a fresh key, and re-encrypts **every** stored secret in a single transaction — a failure rolls back and leaves the vault readable |
-| Group management | Built-in group per credential type; every group (built-in included) can be renamed or deleted, with cascade delete of contained items |
+| Group management | Built-in group per credential type; every group (built-in included) can be renamed or deleted — deleting a group moves its items to the trash first, then removes the group |
 | Search | Sidebar search filters title and subtitle across the item list in real time (backend SQL LIKE); `Ctrl+Shift+Space` opens a system-wide quick-search palette — arrows to select, Enter copies the secret |
 | Built-in 2FA (TOTP) | Optional base32 secret per account; live 6-digit code with a countdown ring in the detail panel |
 | Password generator | Crypto-random, per-class guarantees, length/charset/avoid-ambiguous options, embedded in every password field |
@@ -53,11 +53,14 @@ Developer credentials do not fit the "website + password" model of classic passw
 | Custom fields | Add encrypted key/value pairs to any item for whatever the credential template does not cover |
 | Tags | Cross-group labels; filter the list by tag from the sidebar; items can carry several tags |
 | Local backups | Consistent `VACUUM INTO` snapshots, one per day plus on demand, ten most recent kept; restore verifies integrity and snapshots the current state first |
+| Trash & recovery | Deleting an item moves it to a hidden trash group instead of erasing it: restore it to its original group (or a fallback group once that group is gone), purge a single item, or empty the trash. Retention is configurable (default 30 days); expired entries are purged after the daily backup |
+| Integrity check | Decrypts every encrypted field — all 8 types, custom fields, secret history and optionally attachments — and runs SQLite integrity plus foreign-key checks; failures are reported per item and field without exposing secrets |
+| Duplicate cleanup | Groups active items by type plus identity fields (account username + website host, SSH user@host:port, API key name + endpoint, …), keeps the copy you choose, carries its tags, attachments, custom fields and secret history over, and moves the rest to the trash |
 | Tray resident | Closing the window keeps SecKeyBox running in the system tray (Show / Lock / Quit); the global hotkey and idle lock keep working |
 | Session safety | Configurable auto-lock (off / 1 / 5 / 15 / 30 min, enforced by the app process even while the window is hidden) and clipboard auto-clear (0 / 15 / 30 / 60 s); keys are zeroized on drop |
 | Appearance | Light / dark / follow-system theme |
 
-Notes are stored as plain text by design (searchable); all password/key/secret fields are encrypted.
+Notes are stored as plain text by design; all password/key/secret fields are encrypted.
 
 ## Command line
 
@@ -123,15 +126,18 @@ npm run dev           # frontend only in a plain browser (a built-in mock
                       # replaces the Tauri backend, seeded with demo data)
 npm run build         # typecheck + production web build
 npm run build:cli     # build seckeybox-cli (cli/target/release/seckeybox-cli)
-cd src-tauri && cargo test   # unit tests incl. re-encryption, cascade & IPC protocol
+npm test              # frontend unit tests (Vitest)
+cd src-tauri && cargo test   # unit tests incl. re-encryption, trash, integrity & duplicates
 ```
+
+`.github/workflows/ci.yml` runs `tsc`, the frontend tests, the web build and `cargo test` on every push and pull request.
 
 ## Project structure
 
 ```
 SecKeyBox/
 ├── src/                    # React frontend
-│   ├── components/         # layout, modals, unlock screens, ui primitives
+│   ├── components/         # layout, modals, unlock screens, security & trash panels
 │   ├── stores/             # Zustand stores (vault / ui / settings)
 │   ├── lib/                # Tauri API wrappers, utils
 │   └── mocks/              # dev-only browser mock of the Tauri backend
@@ -139,11 +145,11 @@ SecKeyBox/
 │   └── src/
 │       ├── commands/       # Tauri commands (vault / items / attachments / import-export)
 │       ├── crypto/         # Argon2id KDF + AES-256-GCM cipher + TOTP
-│       ├── db/             # schema, migrations, data access
+│       ├── db/             # schema, migrations, data access, trash / integrity / duplicates
 │       ├── ipc/            # local socket protocol for the CLI
 │       └── state.rs        # in-memory vault state (master key, idle timer)
 ├── cli/                    # standalone `seckeybox-cli` crate
-└── .github/workflows/      # tag-triggered release CI (3 platforms)
+└── .github/workflows/      # ci.yml (push/PR checks) + release.yml (tag-triggered, 3 platforms)
 ```
 
 ## Roadmap
@@ -151,7 +157,7 @@ SecKeyBox/
 - [ ] Browser extension
 - [ ] Mobile apps
 - [ ] End-to-end encrypted cloud sync
-- [ ] Attachments and tags — attachments done in v0.4.0, tags planned
+- [ ] Recovery key / emergency kit
 - [ ] Autocomplete / autofill
 
 ## Contributing
