@@ -14,11 +14,9 @@ export function DeleteConfirmModal() {
 
   if (!target) return null;
 
-  const itemCount = target.type === 'group' 
-    ? items.filter((i) => i.group_id === target.id).length 
-    : 0;
+  const isGroup = target.type === 'group';
 
-  const typeLabel = target.type === 'group' ? t('group.typeGroup') : t('group.typeItem');
+  const itemCount = isGroup ? items.filter((i) => i.group_id === target.id).length : 0;
 
   const handleDelete = async () => {
     if (target.type === 'group') {
@@ -30,12 +28,18 @@ export function DeleteConfirmModal() {
   };
 
   return (
-    <Dialog open={!!target} onClose={close} title={t('group.deleteTitle', { type: typeLabel })}>
+    <Dialog
+      open={!!target}
+      onClose={close}
+      title={isGroup ? t('trash.deleteGroupTitle') : t('trash.deleteItemTitle')}
+    >
       <p className="mb-4 text-gray-600 dark:text-gray-300">
-        {t('group.deleteBody', { name: target.name })}
-        {itemCount > 0 && (
+        {isGroup
+          ? t('trash.deleteGroupBody', { name: target.name })
+          : t('trash.deleteItemBody', { name: target.name })}
+        {isGroup && itemCount > 0 && (
           <span className="block mt-2 font-medium text-red-600 dark:text-red-400">
-            {t('group.deleteItemsWarning', { count: itemCount })}
+            {t('trash.deleteGroupItemsWarning', { count: itemCount })}
           </span>
         )}
       </p>
@@ -44,7 +48,7 @@ export function DeleteConfirmModal() {
           {t('common.cancel')}
         </Button>
         <Button variant="destructive" onClick={handleDelete}>
-          {t('common.delete')}
+          {isGroup ? t('common.delete') : t('trash.moveToTrash')}
         </Button>
       </div>
     </Dialog>

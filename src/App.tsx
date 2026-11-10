@@ -10,6 +10,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { ItemList } from '@/components/layout/ItemList';
 import { DetailPanel } from '@/components/layout/DetailPanel';
 import { SecurityPanel } from '@/components/security/SecurityPanel';
+import { TrashPanel } from '@/components/trash/TrashPanel';
 import { AddEditItemModal } from '@/components/modals/AddEditItemModal';
 import { AddGroupModal } from '@/components/modals/AddGroupModal';
 import { EditGroupModal } from '@/components/modals/EditGroupModal';
@@ -20,19 +21,24 @@ function MainApp() {
   useActivityTracker();
   const loadItems = useVaultStore((s) => s.loadItems);
   const loadTags = useVaultStore((s) => s.loadTags);
+  const loadTrashCount = useVaultStore((s) => s.loadTrashCount);
   const isSecurityPanelOpen = useUIStore((s) => s.isSecurityPanelOpen);
+  const isTrashOpen = useUIStore((s) => s.isTrashOpen);
   const closeSecurityPanel = useUIStore((s) => s.closeSecurityPanel);
 
   useEffect(() => {
     loadItems();
     void loadTags();
-  }, [loadItems, loadTags]);
+    void loadTrashCount();
+  }, [loadItems, loadTags, loadTrashCount]);
 
   return (
     <div className="flex h-screen">
       <Sidebar />
       {isSecurityPanelOpen ? (
         <SecurityPanel onClose={closeSecurityPanel} />
+      ) : isTrashOpen ? (
+        <TrashPanel />
       ) : (
         <>
           <ItemList />
@@ -76,6 +82,15 @@ function App() {
       unlisten?.();
     };
   }, []);
+
+  // A locked (or re-unlocked) session must not restore a stale panel view:
+  // the trash and security panels hold data that no longer exists.
+  useEffect(() => {
+    if (!isUnlocked) {
+      useUIStore.getState().closeTrash();
+      useUIStore.getState().closeSecurityPanel();
+    }
+  }, [isUnlocked]);
 
   console.log('App render:', { isInitialized, isUnlocked });
 

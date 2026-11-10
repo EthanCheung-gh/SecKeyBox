@@ -6,6 +6,8 @@ import { Dialog } from '@/components/ui/dialog';
 import { useSettingsStore, type Language } from '@/stores/settings';
 import {
   setAutoLockMinutes as persistAutoLockMinutes,
+  setTrashRetentionDays as persistTrashRetentionDays,
+  getSecuritySettings,
   createBackup,
   listBackups,
   deleteBackup,
@@ -28,6 +30,9 @@ export function SettingsModal() {
   const setAutoLockMinutes = useSettingsStore((s) => s.setAutoLockMinutes);
   const setClipboardClearSeconds = useSettingsStore((s) => s.setClipboardClearSeconds);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
+
+  // --- trash retention (persisted in Rust, mirrored locally while the dialog is open) ---
+  const [trashRetentionDays, setTrashRetentionDays] = useState(30);
 
   // --- updates ---
   const [updateState, setUpdateState] = useState<
@@ -77,6 +82,14 @@ export function SettingsModal() {
     { value: 0, label: t('settings.neverClear') },
   ];
 
+  const retentionOptions = [
+    { value: 0, label: t('settings.trashRetentionNever') },
+    { value: 7, label: t('settings.days', { count: 7 }) },
+    { value: 30, label: t('settings.days', { count: 30 }) },
+    { value: 90, label: t('settings.days', { count: 90 }) },
+    { value: 365, label: t('settings.days', { count: 365 }) },
+  ];
+
   // --- backups ---
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [backupBusy, setBackupBusy] = useState(false);
@@ -91,10 +104,21 @@ export function SettingsModal() {
   };
 
   useEffect(() => {
-    if (isOpen) {
-      void refreshBackups();
-      setBackupNotice(null);
-    }
+    if (!isOpen) return;
+    void refreshBackups();
+    setBackupNotice(null);
+
+    let cancelled = false;
+    getSecuritySettings()
+      .then((settings) => {
+        if (!cancelled) setTrashRetentionDays(settings.trash_retention_days);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   const formatSize = (bytes: number) =>
@@ -154,6 +178,18 @@ export function SettingsModal() {
     }
   };
 
+  const handleTrashRetentionChange = async (days: number) => {
+    const previous = trashRetentionDays;
+    setTrashRetentionDays(days);
+    setError(null);
+    try {
+      await persistTrashRetentionDays(days);
+    } catch (e) {
+      setTrashRetentionDays(previous);
+      setError(String(e));
+    }
+  };
+
   return (
     <>
       <Button
@@ -201,6 +237,24 @@ export function SettingsModal() {
             </select>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('settings.autoLockHint')}
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">{t('settings.trashRetention')}</label>
+            <select
+              className={selectClass}
+              value={trashRetentionDays}
+              onChange={(e) => void handleTrashRetentionChange(Number(e.target.value))}
+            >
+              {retentionOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t('settings.trashRetentionHint')}
             </p>
           </div>
 

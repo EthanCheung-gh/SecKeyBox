@@ -1,4 +1,4 @@
-import { Plus, Lock, MoreVertical, ShieldCheck } from 'lucide-react';
+import { Plus, Lock, MoreVertical, ShieldCheck, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
@@ -16,6 +16,7 @@ export function Sidebar() {
   const loadItemsByTag = useVaultStore((s) => s.loadItemsByTag);
   const loadItems = useVaultStore((s) => s.loadItems);
   const lock = useVaultStore((s) => s.lock);
+  const trashCount = useVaultStore((s) => s.trashCount);
   const selectedGroupId = useUIStore((s) => s.selectedGroupId);
   const selectedTagId = useUIStore((s) => s.selectedTagId);
   const setSelectedTag = useUIStore((s) => s.setSelectedTag);
@@ -29,6 +30,8 @@ export function Sidebar() {
   const openEditGroupModal = useUIStore((s) => s.openEditGroupModal);
   const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm);
   const openSecurityPanel = useUIStore((s) => s.openSecurityPanel);
+  const isTrashOpen = useUIStore((s) => s.isTrashOpen);
+  const openTrash = useUIStore((s) => s.openTrash);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
   const handleSelectGroup = (id: string | null) => {
@@ -62,7 +65,7 @@ export function Sidebar() {
         <button
           onClick={() => handleSelectGroup(null)}
           className={`w-full rounded-md px-3 py-2 text-left text-sm ${
-            selectedGroupId === null && !showFavoritesOnly 
+            selectedGroupId === null && !showFavoritesOnly && !isTrashOpen
               ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-100' 
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'
           }`}
@@ -79,6 +82,23 @@ export function Sidebar() {
           }`}
         >
           ⭐ {t('sidebar.favorites')}
+        </button>
+
+        <button
+          onClick={openTrash}
+          className={`flex w-full items-center gap-1 rounded-md px-3 py-2 text-left text-sm ${
+            isTrashOpen
+              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-100'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-300'
+          }`}
+        >
+          <Trash2 className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{t('sidebar.trash')}</span>
+          {trashCount > 0 && (
+            <span className="rounded-full bg-gray-200 px-1.5 text-xs dark:bg-gray-600 dark:text-gray-200">
+              {trashCount}
+            </span>
+          )}
         </button>
         
         <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
