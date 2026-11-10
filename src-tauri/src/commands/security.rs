@@ -1,7 +1,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::db::DbConnection;
+use crate::db::{DbConnection, IntegrityReport};
 use crate::error::{Result, VaultError};
 use crate::state::VaultState;
 
@@ -90,3 +90,41 @@ pub fn set_auto_lock_minutes(
     vault_state.touch_activity();
     Ok(())
 }
+
+/// Full-vault integrity self-check: decrypt every encrypted column, then run
+/// SQLite's own `integrity_check` / `foreign_key_check`.
+///
+/// Attachments make the scan slow, so it runs on the blocking pool instead of
+/// the async runtime. The master key is copied out of the state before `app`
+/// moves into the task.
+#[tauri::command]
+pub async fn check_vault_integrity(
+    app: tauri::AppHandle,
+    include_attachments: bool,
+) -> Result<IntegrityReport> {
+    use tauri::Manager;
+
+    let key: [u8; 32] = {
+        let vault_state = app.state::<VaultState>();
+        if !vault_state.is_unlocked() {
+            return Err(VaultError::VaultLocked);
+        }
+        let secure_key = vault_state.get_master_key().ok_or(VaultError::VaultLocked)?;
+        *secure_key.as_bytes()
+    };
+
+    let report = tauri::async_runtime::spawn_blocking(move || {
+        let db = app.state::<DbConnection>();
+        let conn = db
+            .inner()
+            .0
+            .lock()
+            .map_err(|_| VaultError::DatabaseError("Lock poisoned".to_string()))?;
+        crate::db::check_vault_integrity(&conn, &key, include_attachments)
+    })
+    .await
+    .map_err(|e| VaultError::DatabaseError(format!("Integrity check failed: {}", e)))??;
+
+    Ok(report)
+}
+

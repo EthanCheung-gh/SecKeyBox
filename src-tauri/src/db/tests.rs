@@ -1123,3 +1123,252 @@ fn migration_adds_trash_columns_to_a_v8_database() {
         "secret-pw"
     );
 }
+
+// ---------- integrity self-check ----------
+
+#[test]
+fn integrity_check_reports_a_healthy_vault() {
+    let conn = seeded_conn();
+    let key = derive_key("integrity-healthy-password", None).unwrap().key;
+
+    // Every category with an encrypted column, including SSH (two fields).
+    seed_all_types(&conn, &key);
+
+    // One custom field, one archived secret (password rotation) and one
+    // attachment cover the remaining encrypted tables.
+    let account = create_account_item(
+        &conn, "built-in-accounts", "Rotating", "user", "old-pw", None, None, None, &key,
+    )
+    .unwrap();
+    save_custom_fields(&conn, &account, &[("region".to_string(), "eu-west-1".to_string())], &key)
+        .unwrap();
+    update_account_item(&conn, &account, "Rotating", "user", Some("new-pw"), None, None, None, &key)
+        .unwrap();
+    add_attachment(&conn, &account, "id_ed25519", Some("text/plain"), b"payload", &key).unwrap();
+
+    let report = check_vault_integrity(&conn, &key, true).unwrap();
+
+    assert!(report.failures.is_empty(), "unexpected failures: {:?}", report.failures);
+    assert_eq!(report.sqlite_integrity, "ok");
+    assert!(report.foreign_key_violations.is_empty());
+    assert!(report.checked_attachments);
+    assert!(report.checked_at > 0);
+    // 9 seeded fields + rotated account password + custom field
+    // + secret history + attachment.
+    assert_eq!(report.checked_fields, 13, "one attempt per non-NULL ciphertext");
+}
+
+#[test]
+fn integrity_check_reports_corrupted_ciphertext_without_leaking_plaintext() {
+    let conn = seeded_conn();
+    let key = derive_key("integrity-corrupt-password", None).unwrap().key;
+    let id = create_account_item(
+        &conn,
+        "built-in-accounts",
+        "Corrupted",
+        "user",
+        "hunter2-plaintext",
+        None,
+        None,
+        None,
+        &key,
+    )
+    .unwrap();
+
+    conn.execute("UPDATE account_items SET password_encrypted = x'00' WHERE item_id = ?1", [&id])
+        .unwrap();
+
+    let report = check_vault_integrity(&conn, &key, false).unwrap();
+
+    assert_eq!(report.failures.len(), 1, "failures: {:?}", report.failures);
+    let failure = &report.failures[0];
+    assert_eq!(failure.item_id, id);
+    assert_eq!(failure.item_title, "Corrupted");
+    assert_eq!(failure.item_type, "account");
+    assert_eq!(failure.scope, "account");
+    assert_eq!(failure.field, "password");
+    assert!(!failure.reason.is_empty());
+    assert!(
+        !failure.reason.contains("hunter2"),
+        "the report must not leak the plaintext: {}",
+        failure.reason
+    );
+    assert!(report.checked_fields >= 1);
+    assert_eq!(report.sqlite_integrity, "ok");
+}
+
+#[test]
+fn integrity_check_skips_optional_secrets_that_were_never_set() {
+    let conn = seeded_conn();
+    let key = derive_key("integrity-nullable-password", None).unwrap().key;
+
+    // Account without TOTP, SSH item without password and passphrase.
+    create_account_item(&conn, "built-in-accounts", "No totp", "u", "pw", None, None, None, &key)
+        .unwrap();
+    create_ssh_item(
+        &conn, "built-in-servers", "Key only", "host", Some(22), "u", None, Some("/tmp/key"),
+        None, None, &key,
+    )
+    .unwrap();
+
+    let report = check_vault_integrity(&conn, &key, true).unwrap();
+
+    assert!(report.failures.is_empty(), "unexpected failures: {:?}", report.failures);
+    assert_eq!(report.checked_fields, 1, "only the account password is set");
+}
+
+/// A half-written pair can never decrypt. `account_items.password_nonce` is
+/// NOT NULL, so the nullable SSH passphrase columns carry both directions of
+/// the mismatch.
+#[test]
+fn integrity_check_flags_a_ciphertext_without_a_nonce() {
+    let conn = seeded_conn();
+    let key = derive_key("integrity-nonce-password", None).unwrap().key;
+
+    let without_nonce = create_ssh_item(
+        &conn, "built-in-servers", "No nonce", "host", Some(22), "u", None, None, None, None, &key,
+    )
+    .unwrap();
+    let without_ciphertext = create_ssh_item(
+        &conn, "built-in-servers", "No ciphertext", "host2", Some(22), "u", None, None, None, None,
+        &key,
+    )
+    .unwrap();
+
+    conn.execute(
+        "UPDATE ssh_items SET passphrase_encrypted = x'00' WHERE item_id = ?1",
+        [&without_nonce],
+    )
+    .unwrap();
+    conn.execute(
+        "UPDATE ssh_items SET passphrase_nonce = x'000000000000000000000000' WHERE item_id = ?1",
+        [&without_ciphertext],
+    )
+    .unwrap();
+
+    let report = check_vault_integrity(&conn, &key, false).unwrap();
+
+    assert_eq!(report.failures.len(), 2, "failures: {:?}", report.failures);
+    for (item_id, expected_hint) in [
+        (&without_nonce, "nonce is null"),
+        (&without_ciphertext, "ciphertext is null"),
+    ] {
+        let failure = report
+            .failures
+            .iter()
+            .find(|f| &f.item_id == item_id)
+            .unwrap_or_else(|| panic!("no failure for {item_id}"));
+        assert_eq!(failure.scope, "ssh");
+        assert_eq!(failure.field, "passphrase");
+        let reason = failure.reason.to_lowercase();
+        assert!(
+            reason.contains("nonce") || reason.contains("mismatch"),
+            "reason should explain the broken pair: {}",
+            failure.reason
+        );
+        assert!(reason.contains(expected_hint), "got {}", failure.reason);
+    }
+    // Only the row that still holds ciphertext counts as a decrypt attempt.
+    assert_eq!(report.checked_fields, 1);
+}
+
+#[test]
+fn integrity_check_only_scans_attachments_when_asked() {
+    let conn = seeded_conn();
+    let key = derive_key("integrity-attachment-password", None).unwrap().key;
+    let id = create_account_item(&conn, "built-in-accounts", "With file", "u", "pw", None, None, None, &key)
+        .unwrap();
+    let meta = add_attachment(&conn, &id, "cert.pem", Some("text/plain"), b"payload", &key).unwrap();
+
+    conn.execute("UPDATE item_attachments SET data_encrypted = x'00' WHERE id = ?1", [&meta.id])
+        .unwrap();
+
+    let without = check_vault_integrity(&conn, &key, false).unwrap();
+    assert!(!without.checked_attachments);
+    assert!(
+        without.failures.is_empty(),
+        "attachments must be skipped: {:?}",
+        without.failures
+    );
+
+    let with = check_vault_integrity(&conn, &key, true).unwrap();
+    assert!(with.checked_attachments);
+    assert_eq!(with.failures.len(), 1, "failures: {:?}", with.failures);
+    assert_eq!(with.failures[0].scope, "attachment");
+    assert_eq!(with.failures[0].field, "data");
+    assert_eq!(with.failures[0].item_id, id);
+    assert_eq!(
+        with.checked_fields,
+        without.checked_fields + 1,
+        "the attachment must be counted once it is scanned"
+    );
+}
+
+#[test]
+fn integrity_check_reports_custom_field_corruption() {
+    let conn = seeded_conn();
+    let key = derive_key("integrity-custom-password", None).unwrap().key;
+    let id = create_account_item(&conn, "built-in-accounts", "Custom", "u", "pw", None, None, None, &key)
+        .unwrap();
+    save_custom_fields(&conn, &id, &[("region".to_string(), "eu".to_string())], &key).unwrap();
+
+    conn.execute("UPDATE custom_fields SET value_encrypted = x'FF' WHERE item_id = ?1", [&id])
+        .unwrap();
+
+    let report = check_vault_integrity(&conn, &key, false).unwrap();
+
+    assert_eq!(report.failures.len(), 1, "failures: {:?}", report.failures);
+    assert_eq!(report.failures[0].item_id, id);
+    assert_eq!(report.failures[0].scope, "custom_field");
+    assert_eq!(report.failures[0].field, "value");
+    assert!(!report.failures[0].reason.is_empty());
+}
+
+/// A trashed item stays encrypted on disk, so it must be scanned before the
+/// user restores it.
+#[test]
+fn integrity_check_includes_trashed_items() {
+    let conn = seeded_conn();
+    let key = derive_key("integrity-trash-password", None).unwrap().key;
+    let id = create_account_item(&conn, "built-in-accounts", "Trashed", "u", "pw", None, None, None, &key)
+        .unwrap();
+    delete_item(&conn, &id).unwrap();
+    conn.execute("UPDATE account_items SET password_encrypted = x'00' WHERE item_id = ?1", [&id])
+        .unwrap();
+
+    let report = check_vault_integrity(&conn, &key, false).unwrap();
+
+    assert_eq!(report.failures.len(), 1, "failures: {:?}", report.failures);
+    assert_eq!(report.failures[0].item_id, id);
+    assert_eq!(report.failures[0].item_title, "Trashed");
+}
+
+/// Foreign-key damage is a finding, not a fatal error: the rest of the report
+/// is still produced. Orphan detail rows are not decryptable through `items`,
+/// so they must not turn into crypto failures either.
+#[test]
+fn integrity_check_reports_foreign_key_violations_without_failing() {
+    let conn = seeded_conn();
+    let key = derive_key("integrity-fk-password", None).unwrap().key;
+
+    conn.execute_batch(
+        r#"
+        PRAGMA foreign_keys = OFF;
+        INSERT INTO secret_history (item_id, field, value_encrypted, value_nonce, changed_at)
+        VALUES ('ghost-item', 'password', x'00', x'000000000000000000000000', 0);
+        PRAGMA foreign_keys = ON;
+        "#,
+    )
+    .unwrap();
+
+    let report = check_vault_integrity(&conn, &key, false).unwrap();
+
+    assert_eq!(report.foreign_key_violations.len(), 1, "{:?}", report.foreign_key_violations);
+    let violation = &report.foreign_key_violations[0];
+    assert!(violation.contains("secret_history"), "got {violation}");
+    assert!(violation.contains("items"), "got {violation}");
+    assert!(violation.contains("rowid"), "got {violation}");
+    assert!(report.failures.is_empty(), "unexpected failures: {:?}", report.failures);
+    assert_eq!(report.sqlite_integrity, "ok");
+}
+

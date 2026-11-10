@@ -227,6 +227,7 @@ pub fn run() {
             get_security_settings,
             get_activity_log,
             set_auto_lock_minutes,
+            check_vault_integrity,
             add_attachment_cmd,
             list_attachments_cmd,
             get_attachment_cmd,
