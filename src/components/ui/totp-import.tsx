@@ -75,7 +75,7 @@ export function TotpImport({ onImport }: TotpImportProps) {
       </div>
 
       {error && (
-        <p className="mt-1 flex items-start gap-1 text-xs text-red-500">
+        <p className="mt-1 flex items-start gap-1 text-xs text-red-500 dark:text-red-400">
           <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
           {error}
         </p>
@@ -100,7 +100,7 @@ export function TotpImport({ onImport }: TotpImportProps) {
             />
           </div>
           {error && (
-            <p className="text-xs text-red-500">{error}</p>
+            <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setIsPasteOpen(false)}>

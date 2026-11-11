@@ -130,7 +130,7 @@ export function ChangePasswordModal() {
                 minLength={MIN_LENGTH}
               />
               {confirmPassword !== '' && confirmPassword !== newPassword && (
-                <p className="mt-1 text-xs text-red-500">{t('changePassword.mismatch')}</p>
+                <p className="mt-1 text-xs text-red-500 dark:text-red-400">{t('changePassword.mismatch')}</p>
               )}
             </div>
 

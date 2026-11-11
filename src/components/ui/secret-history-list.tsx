@@ -28,7 +28,7 @@ export function SecretHistoryList({ entries }: { entries: SecretHistoryEntry[] }
               <span className="text-gray-400 dark:text-gray-300">{formatTime(entry.changed_at)}</span>
               <button
                 onClick={() => copySecret(entry.value).catch(() => undefined)}
-                className="font-mono text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                className="font-mono text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100"
                 title={t('history.copyValue')}
               >
                 {entry.value.slice(0, 12)}

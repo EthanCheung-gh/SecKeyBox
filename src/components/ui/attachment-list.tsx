@@ -122,7 +122,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
         />
       </div>
 
-      {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
+      {error && <p className="mb-2 text-xs text-red-500 dark:text-red-400">{error}</p>}
 
       {attachments.length === 0 ? (
         <p className="text-xs text-gray-400 dark:text-gray-300">
@@ -144,7 +144,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
                   <Download className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => void handleDelete(meta)}>
-                  <Trash2 className="h-4 w-4 text-red-500" />
+                  <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
                 </Button>
               </div>
             </li>

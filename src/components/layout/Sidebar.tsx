@@ -139,7 +139,7 @@ export function Sidebar() {
                         openDeleteConfirm('group', group.id, groupDisplayName(group, t));
                         setMenuOpenId(null);
                       }}
-                      className="block w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-gray-100 dark:hover:bg-gray-600"
+                      className="block w-full px-3 py-2 text-left text-sm text-red-500 hover:bg-gray-100 dark:text-red-400 dark:hover:bg-gray-600"
                     >
                       {t('sidebar.delete')}
                     </button>
@@ -183,7 +183,7 @@ export function Sidebar() {
                   if (selectedTagId === tag.id) setSelectedTag(null);
                 }
               }}
-              className="rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-500 dark:text-gray-300 dark:hover:bg-gray-600"
+              className="rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-500 dark:text-gray-300 dark:hover:bg-gray-600 dark:hover:text-red-400"
               title={t('common.delete')}
             >
               ×

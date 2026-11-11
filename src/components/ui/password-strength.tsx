@@ -16,10 +16,10 @@ export function PasswordStrength({ password }: PasswordStrengthProps) {
       <div className="flex items-center justify-between text-xs">
         <span className="text-gray-500 dark:text-gray-300">{t('passwordStrength.label')}</span>
         <span className={`font-medium ${
-          result.level === 'weak' ? 'text-red-500' :
-          result.level === 'fair' ? 'text-orange-500' :
-          result.level === 'good' ? 'text-yellow-600' :
-          'text-green-500'
+          result.level === 'weak' ? 'text-red-500 dark:text-red-400' :
+          result.level === 'fair' ? 'text-orange-500 dark:text-orange-400' :
+          result.level === 'good' ? 'text-yellow-600 dark:text-yellow-400' :
+          'text-green-500 dark:text-green-400'
         }`}>
           {result.label}
         </span>

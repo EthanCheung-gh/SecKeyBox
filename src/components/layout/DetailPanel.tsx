@@ -448,7 +448,7 @@ export function DetailPanel() {
             size="sm"
             onClick={() => openDeleteConfirm('item', selectedItem.id, selectedItem.title)}
           >
-            <Trash2 className="h-4 w-4 text-red-500" />
+            <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
           </Button>
         </div>
       </div>

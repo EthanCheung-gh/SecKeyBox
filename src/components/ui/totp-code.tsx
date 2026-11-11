@@ -85,7 +85,7 @@ export function TotpCode({ itemId, secret }: { itemId: string; secret?: string }
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
-      {error && <p className="mt-1 text-xs text-red-500">{t('totp.error', { error })}</p>}
+      {error && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{t('totp.error', { error })}</p>}
     </div>
   );
 }

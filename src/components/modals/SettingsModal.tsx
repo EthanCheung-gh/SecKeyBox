@@ -375,7 +375,7 @@ export function SettingsModal() {
               </Button>
               {integrityState.kind === 'done' && <IntegrityReportView report={integrityState.report} />}
               {integrityState.kind === 'error' && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-red-500 dark:text-red-400">
                   {t('integrity.error', { message: integrityState.message })}
                 </p>
               )}
@@ -427,7 +427,7 @@ export function SettingsModal() {
                 </div>
               )}
               {updateState.kind === 'error' && (
-                <p className="text-xs text-red-500">
+                <p className="text-xs text-red-500 dark:text-red-400">
                   {t('update.error', { message: updateState.message })}
                 </p>
               )}
