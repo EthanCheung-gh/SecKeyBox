@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.6.2-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.6.3-blue?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
   <a href="license"><img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License"></a>
 </p>
@@ -59,7 +59,7 @@ Developer credentials do not fit the "website + password" model of classic passw
 | Tray resident | Closing the window keeps SecKeyBox running in the system tray (Show / Lock / Quit); the global hotkey and idle lock keep working |
 | Session safety | Configurable auto-lock (off / 1 / 5 / 15 / 30 min, enforced by the app process even while the window is hidden) and clipboard auto-clear (0 / 15 / 30 / 60 s); keys are zeroized on drop |
 | In-app updates | Signed GitHub Release updates from `Settings → Updates`: each update is verified against the embedded minisign public key before it is downloaded, installed and the app restarted (Linux AppImage restarts are handled: the restart command clears the stale AppImage environment and the release AppImage ships a patched `AppRun`) |
-| Appearance | Light / dark / follow-system theme |
+| Appearance | Light / dark / follow-system theme; dark-mode controls and text are tuned for WCAG AA contrast |
 
 Notes are stored as plain text by design; all password/key/secret fields are encrypted.
 

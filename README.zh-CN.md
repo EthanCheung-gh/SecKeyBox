@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.6.2-blue?style=flat-square" alt="Release"></a>
+  <a href="https://github.com/EthanCheung-gh/SecKeyBox/releases"><img src="https://img.shields.io/badge/release-v0.6.3-blue?style=flat-square" alt="Release"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms">
   <a href="license"><img src="https://img.shields.io/badge/license-Apache--2.0-green?style=flat-square" alt="License"></a>
 </p>
@@ -59,7 +59,7 @@
 | 托盘常驻 | 关闭窗口后应用驻留系统托盘（显示 / 锁定 / 退出），全局快捷键与空闲锁定继续生效 |
 | 会话安全 | 自动锁定可配置（关闭 / 1 / 5 / 15 / 30 分钟，由应用进程强制执行，窗口隐藏也生效）；剪贴板自动清除可配置（0 / 15 / 30 / 60 秒）；密钥释放时内存清零 |
 | 应用内更新 | 在「设置 → 更新」中获取签名的 GitHub Release 更新：下载前先用内置 minisign 公钥校验签名，通过后自动安装并重启应用（Linux AppImage 的重启已处理：重启命令会清理旧的 AppImage 环境变量，发布用的 AppImage 也内置了打过补丁的 `AppRun`） |
-| 外观 | 亮色 / 暗色 / 跟随系统主题 |
+| 外观 | 亮色 / 暗色 / 跟随系统主题；深色模式控件与文字按 WCAG AA 对比度调校 |
 
 备注字段按设计以明文存储；所有密码 / 密钥 / 秘密字段均为密文。
 
