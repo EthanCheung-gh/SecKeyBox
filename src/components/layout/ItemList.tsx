@@ -84,7 +84,7 @@ export function ItemList() {
 
       <div className="flex-1 overflow-y-auto">
         {filteredAndSortedItems.length === 0 ? (
-          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+          <div className="p-4 text-center text-gray-500 dark:text-gray-300">
             {searchActive
               ? t('list.noSearchResults')
               : showFavoritesOnly
@@ -104,7 +104,7 @@ export function ItemList() {
                 <span className="font-medium dark:text-gray-100">{item.title}</span>
                 {item.is_favorite && <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />}
               </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">{item.subtitle}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-300">{item.subtitle}</div>
             </button>
           ))
         )}

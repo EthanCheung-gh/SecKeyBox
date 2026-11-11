@@ -53,7 +53,7 @@ export function TotpCode({ itemId, secret }: { itemId: string; secret?: string }
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">
+      <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">
         {t('totp.title')}
       </label>
       <div className="flex items-center gap-3">
@@ -74,7 +74,7 @@ export function TotpCode({ itemId, secret }: { itemId: string; secret?: string }
               strokeLinecap="round"
             />
           </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400">
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-300">
             {remaining}
           </span>
         </div>

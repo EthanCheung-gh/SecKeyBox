@@ -20,7 +20,7 @@ export function IntegrityReportView({ report }: { report: IntegrityReport }) {
           <p className="text-green-700 dark:text-green-400">
             {t('integrity.ok', { count: report.checked_fields })}
           </p>
-          <p className="mt-1 text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-gray-500 dark:text-gray-300">
             {t('integrity.duration', { ms: report.duration_ms })}
           </p>
         </div>
@@ -38,7 +38,7 @@ export function IntegrityReportView({ report }: { report: IntegrityReport }) {
         </p>
       )}
 
-      <ul className="space-y-1 text-gray-500 dark:text-gray-400">
+      <ul className="space-y-1 text-gray-500 dark:text-gray-300">
         <li>{t('integrity.checkedFields', { count: report.checked_fields })}</li>
         <li>{t('integrity.sqlite', { status: report.sqlite_integrity })}</li>
         <li>
@@ -64,13 +64,13 @@ export function IntegrityReportView({ report }: { report: IntegrityReport }) {
                 <div className="flex flex-wrap items-center gap-1 dark:text-gray-200">
                   <span className="font-medium">{failure.item_title || failure.item_id}</span>
                   {typeLabel !== typeKey && (
-                    <span className="text-gray-400">· {typeLabel}</span>
+                    <span className="text-gray-400 dark:text-gray-300">· {typeLabel}</span>
                   )}
                 </div>
-                <p className="text-gray-500 dark:text-gray-400">
+                <p className="text-gray-500 dark:text-gray-300">
                   {failure.scope} · {failure.field}
                 </p>
-                <p className="break-words font-mono text-gray-400 dark:text-gray-500">
+                <p className="break-words font-mono text-gray-400 dark:text-gray-300">
                   {failure.reason}
                 </p>
               </li>
@@ -80,7 +80,7 @@ export function IntegrityReportView({ report }: { report: IntegrityReport }) {
       )}
 
       {!healthy && (
-        <p className="text-gray-500 dark:text-gray-400">{t('integrity.restoreHint')}</p>
+        <p className="text-gray-500 dark:text-gray-300">{t('integrity.restoreHint')}</p>
       )}
     </div>
   );

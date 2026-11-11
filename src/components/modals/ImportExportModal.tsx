@@ -158,7 +158,7 @@ export function ImportExportModal() {
       <Button
         variant="ghost"
         size="sm"
-        className="w-full justify-start text-gray-500 dark:text-gray-400"
+        className="w-full justify-start text-gray-500 dark:text-gray-300"
         onClick={() => setIsOpen(true)}
       >
         <Download className="mr-2 h-4 w-4" /> {t('importExport.short')}
@@ -201,7 +201,7 @@ export function ImportExportModal() {
 
           <div>
             <h3 className="mb-2 font-medium dark:text-gray-100">{t('importExport.exportVault')}</h3>
-            <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mb-3 text-sm text-gray-500 dark:text-gray-300">
               {t('importExport.exportHint')}
             </p>
             <Button onClick={handleExport} disabled={isExporting}>
@@ -226,7 +226,7 @@ export function ImportExportModal() {
                   className={`rounded-md border px-2.5 py-1 ${
                     importTab === tab
                       ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                      : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'
+                      : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-300'
                   }`}
                 >
                   {label}
@@ -236,11 +236,11 @@ export function ImportExportModal() {
 
             {importTab === 'json' && (
               <>
-                <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mb-3 text-sm text-gray-500 dark:text-gray-300">
                   {t('importExport.importHint')}
                 </p>
                 <div className="mb-3">
-                  <label className="mb-1 block text-sm text-gray-500 dark:text-gray-400">{t('importExport.importMode')}</label>
+                  <label className="mb-1 block text-sm text-gray-500 dark:text-gray-300">{t('importExport.importMode')}</label>
                   <select
                     value={importMode}
                     onChange={(e) => setImportMode(e.target.value as ImportMode)}
@@ -259,7 +259,7 @@ export function ImportExportModal() {
 
             {importTab === 'csv' && (
               <>
-                <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mb-3 text-sm text-gray-500 dark:text-gray-300">
                   {t('importExport.csvHint', {
                     group: groups.find((g) => g.id === targetGroupId)?.name ?? t('importExport.unselected'),
                   })}
@@ -273,11 +273,11 @@ export function ImportExportModal() {
 
             {importTab === 'env' && (
               <>
-                <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mb-3 text-sm text-gray-500 dark:text-gray-300">
                   {t('importExport.envHint')} <code className="font-mono">KEY=VALUE</code>
                 </p>
                 <div className="mb-3">
-                  <label className="mb-1 block text-sm text-gray-500 dark:text-gray-400">{t('importExport.envTitle')}</label>
+                  <label className="mb-1 block text-sm text-gray-500 dark:text-gray-300">{t('importExport.envTitle')}</label>
                   <input
                     value={envTitle}
                     onChange={(e) => setEnvTitle(e.target.value)}

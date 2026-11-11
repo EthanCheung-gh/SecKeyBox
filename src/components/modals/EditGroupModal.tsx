@@ -54,7 +54,7 @@ export function EditGroupModal() {
                 key={i}
                 type="button"
                 onClick={() => setIcon(i)}
-                className={`rounded p-2 text-xl ${icon === i ? 'bg-primary-100' : 'hover:bg-gray-100'}`}
+                className={`rounded p-2 text-xl ${icon === i ? 'bg-primary-100 dark:bg-primary-900' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
               >
                 {i}
               </button>

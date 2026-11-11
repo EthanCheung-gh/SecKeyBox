@@ -119,7 +119,7 @@ export function Sidebar() {
               <div className="relative">
                 <button
                   onClick={() => setMenuOpenId(menuOpenId === group.id ? null : group.id)}
-                  className="rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 dark:text-gray-400"
+                  className="rounded p-1 opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-600 dark:text-gray-300"
                 >
                   <MoreVertical className="h-4 w-4" />
                 </button>
@@ -153,7 +153,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="sm"
-          className="mt-2 w-full justify-start text-gray-500 dark:text-gray-400"
+          className="mt-2 w-full justify-start text-gray-500 dark:text-gray-300"
           onClick={openAddGroupModal}
         >
           <Plus className="mr-2 h-4 w-4" /> {t('sidebar.addGroup')}
@@ -161,7 +161,7 @@ export function Sidebar() {
 
         <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
 
-        <div className="px-3 py-1 text-xs uppercase tracking-wide text-gray-400">
+        <div className="px-3 py-1 text-xs uppercase tracking-wide text-gray-400 dark:text-gray-300">
           {t('tags.title')}
         </div>
         {tags.map((tag) => (
@@ -183,7 +183,7 @@ export function Sidebar() {
                   if (selectedTagId === tag.id) setSelectedTag(null);
                 }
               }}
-              className="rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-500 dark:hover:bg-gray-600"
+              className="rounded p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-200 hover:text-red-500 dark:text-gray-300 dark:hover:bg-gray-600"
               title={t('common.delete')}
             >
               ×
@@ -193,7 +193,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-gray-500 dark:text-gray-400"
+          className="w-full justify-start text-gray-500 dark:text-gray-300"
           onClick={openAddTagModal}
         >
           <Plus className="mr-2 h-4 w-4" /> {t('tags.add')}
@@ -204,7 +204,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start text-gray-500 dark:text-gray-400"
+          className="w-full justify-start text-gray-500 dark:text-gray-300"
           onClick={openSecurityPanel}
         >
           <ShieldCheck className="mr-2 h-4 w-4" /> {t('sidebar.securityCheck')}
@@ -216,7 +216,7 @@ export function Sidebar() {
           <Button
             variant="ghost"
             size="sm"
-            className="text-gray-500 dark:text-gray-400"
+            className="text-gray-500 dark:text-gray-300"
             onClick={lock}
           >
             <Lock className="mr-2 h-4 w-4" /> {t('sidebar.lock')}

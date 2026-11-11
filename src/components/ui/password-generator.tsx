@@ -128,7 +128,7 @@ export function PasswordGenerator({
         </button>
       </div>
 
-      <div className="mb-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <div className="mb-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-300">
         <div className="h-1.5 flex-1 rounded-full bg-gray-200 dark:bg-gray-700">
           <div
             className={`h-full rounded-full ${strength >= 80 ? 'bg-green-500' : strength >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}

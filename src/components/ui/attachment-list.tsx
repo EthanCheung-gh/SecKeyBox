@@ -102,7 +102,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
   return (
     <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
       <div className="mb-2 flex items-center justify-between">
-        <label className="flex items-center gap-1 text-sm font-medium text-gray-500 dark:text-gray-400">
+        <label className="flex items-center gap-1 text-sm font-medium text-gray-500 dark:text-gray-300">
           <Paperclip className="h-4 w-4" /> {t('attachments.title')}
         </label>
         <Button
@@ -125,7 +125,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
       {error && <p className="mb-2 text-xs text-red-500">{error}</p>}
 
       {attachments.length === 0 ? (
-        <p className="text-xs text-gray-400 dark:text-gray-500">
+        <p className="text-xs text-gray-400 dark:text-gray-300">
           {t('attachments.empty')}
         </p>
       ) : (
@@ -137,7 +137,7 @@ export function AttachmentList({ itemId }: { itemId: string }) {
             >
               <div className="min-w-0">
                 <p className="truncate text-sm dark:text-gray-200">{meta.filename}</p>
-                <p className="text-xs text-gray-400">{formatSize(meta.size)}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-300">{formatSize(meta.size)}</p>
               </div>
               <div className="flex shrink-0 gap-1">
                 <Button variant="ghost" size="sm" onClick={() => void handleSave(meta)}>

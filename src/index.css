@@ -18,12 +18,32 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --bg-primary: #1f2937;
   --bg-secondary: #111827;
   --bg-tertiary: #374151;
   --text-primary: #f9fafb;
   --text-secondary: #9ca3af;
   --border-color: #374151;
+}
+
+/* Native controls do not follow Tailwind text/border utilities, so give the
+   browser-rendered pieces of form controls an explicit dark palette. */
+.dark select option {
+  background-color: #1f2937;
+  color: #f3f4f6;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #d1d5db;
+}
+
+.dark input[type='checkbox'],
+.dark input[type='radio'],
+.dark input[type='range'] {
+  accent-color: #3b82f6;
 }
 
 body {

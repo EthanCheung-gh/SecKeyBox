@@ -82,9 +82,9 @@ export function TrashPanel() {
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-gray-50 p-6 dark:bg-gray-900">
       <div className="mb-1 flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Trash2 className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+          <Trash2 className="h-5 w-5 text-gray-500 dark:text-gray-300" />
           <h2 className="text-lg font-semibold dark:text-gray-100">{t('trash.title')}</h2>
-          <span className="text-xs text-gray-500 dark:text-gray-400">({trashCount})</span>
+          <span className="text-xs text-gray-500 dark:text-gray-300">({trashCount})</span>
         </div>
         <Button
           variant="outline"
@@ -96,7 +96,7 @@ export function TrashPanel() {
         </Button>
       </div>
 
-      <p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+      <p className="mb-4 text-xs text-gray-500 dark:text-gray-300">
         {retentionDays === 0 ? t('trash.hintNever') : t('trash.hint', { days: retentionDays })}
       </p>
 
@@ -108,9 +108,9 @@ export function TrashPanel() {
 
       <div className="flex-1 overflow-y-auto">
         {loading ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-300">{t('common.loading')}</p>
         ) : trashItems.length === 0 ? (
-          <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+          <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
             {t('trash.empty')}
           </p>
         ) : (
@@ -124,7 +124,7 @@ export function TrashPanel() {
                   <div className="truncate text-sm font-medium dark:text-gray-100">
                     {item.icon || '📂'} {item.title}
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-300">
                     <span>{t(`type.${item.type}`)}</span>
                     <span>·</span>
                     <span>

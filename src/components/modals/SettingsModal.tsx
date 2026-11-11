@@ -220,7 +220,7 @@ export function SettingsModal() {
       <Button
         variant="ghost"
         size="sm"
-        className="w-full justify-start text-gray-500 dark:text-gray-400"
+        className="w-full justify-start text-gray-500 dark:text-gray-300"
         onClick={() => setIsOpen(true)}
       >
         <Settings className="mr-2 h-4 w-4" /> {t('settings.open')}
@@ -260,7 +260,7 @@ export function SettingsModal() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
               {t('settings.autoLockHint')}
             </p>
           </div>
@@ -278,7 +278,7 @@ export function SettingsModal() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
               {t('settings.trashRetentionHint')}
             </p>
           </div>
@@ -296,7 +296,7 @@ export function SettingsModal() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-300">
               {t('settings.clipboardHint')}
             </p>
           </div>
@@ -304,7 +304,7 @@ export function SettingsModal() {
           <div>
             <label className="mb-1 block text-sm font-medium">{t('backup.title')}</label>
             <div className="space-y-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('backup.hint')}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-300">{t('backup.hint')}</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -317,14 +317,14 @@ export function SettingsModal() {
                 <p className="text-xs text-primary-600 dark:text-primary-400">{backupNotice}</p>
               )}
               {backups.length === 0 ? (
-                <p className="text-xs text-gray-400">{t('backup.empty')}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-300">{t('backup.empty')}</p>
               ) : (
                 <ul className="space-y-1">
                   {backups.map((backup) => (
                     <li key={backup.file} className="flex items-center justify-between gap-2 text-xs">
                       <span className="truncate dark:text-gray-300">
                         {new Date(backup.created_at * 1000).toLocaleString()}
-                        <span className="ml-2 text-gray-400">{formatSize(backup.size)}</span>
+                        <span className="ml-2 text-gray-400 dark:text-gray-300">{formatSize(backup.size)}</span>
                       </span>
                       <span className="flex shrink-0 gap-1">
                         <Button
@@ -354,7 +354,7 @@ export function SettingsModal() {
           <div>
             <label className="mb-1 block text-sm font-medium">{t('integrity.title')}</label>
             <div className="space-y-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('integrity.hint')}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-300">{t('integrity.hint')}</p>
               <label className="flex items-center gap-2 text-xs dark:text-gray-300">
                 <input
                   type="checkbox"
@@ -385,7 +385,7 @@ export function SettingsModal() {
           <div>
             <label className="mb-1 block text-sm font-medium">{t('update.title')}</label>
             <div className="space-y-2 rounded-md border border-gray-200 p-3 text-sm dark:border-gray-700">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-gray-300">
                 {t('update.currentVersion', { version: __APP_VERSION__ })}
               </p>
               {updateState.kind === 'idle' && (
@@ -394,7 +394,7 @@ export function SettingsModal() {
                 </Button>
               )}
               {updateState.kind === 'checking' && (
-                <p className="text-xs text-gray-500">{t('update.checking')}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-300">{t('update.checking')}</p>
               )}
               {updateState.kind === 'up-to-date' && (
                 <p className="text-xs text-green-600 dark:text-green-400">{t('update.upToDate')}</p>
@@ -414,7 +414,7 @@ export function SettingsModal() {
                 </div>
               )}
               {updateState.kind === 'downloading' && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-gray-300">
                   {t('update.downloading', { percent: updateState.percent })}
                 </p>
               )}

@@ -61,7 +61,7 @@ export function DetailPanel() {
   if (!selectedItem) {
     return (
       <div className="flex h-full flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <p className="text-gray-400 dark:text-gray-500">{t('detail.selectItem')}</p>
+        <p className="text-gray-400 dark:text-gray-300">{t('detail.selectItem')}</p>
       </div>
     );
   }
@@ -79,7 +79,7 @@ export function DetailPanel() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.username')}</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.username')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium dark:text-gray-100">{item.username}</span>
             <Button variant="ghost" size="sm" onClick={() => handleCopy(item.username, 'username')}>
@@ -89,7 +89,7 @@ export function DetailPanel() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.password')}</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.password')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium dark:text-gray-100">
               {showPassword ? item.password : '••••••••'}
@@ -105,7 +105,7 @@ export function DetailPanel() {
 
         {item.website && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.website')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.website')}</label>
             <a
               href={item.website}
               target="_blank"
@@ -119,7 +119,7 @@ export function DetailPanel() {
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -134,7 +134,7 @@ export function DetailPanel() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.keyName')}</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.keyName')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium dark:text-gray-100">{item.key_name}</span>
             <Button variant="ghost" size="sm" onClick={() => handleCopy(item.key_name, 'key_name')}>
@@ -144,7 +144,7 @@ export function DetailPanel() {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.keyValue')}</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.keyValue')}</label>
           <div className="flex items-center gap-2">
             <span className="font-medium font-mono text-sm dark:text-gray-100">
               {showKeyValue ? item.key_value : maskKeyValue(item.key_value)}
@@ -160,7 +160,7 @@ export function DetailPanel() {
 
         {item.endpoint && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.endpoint')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.endpoint')}</label>
             <div className="flex items-center gap-2">
               <a
                 href={item.endpoint}
@@ -179,7 +179,7 @@ export function DetailPanel() {
 
         {item.auth_method && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.authMethod')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.authMethod')}</label>
             <div className="flex items-center gap-2">
               <span className="font-medium capitalize dark:text-gray-100">{item.auth_method.replace('_', ' ')}</span>
               <Button variant="ghost" size="sm" onClick={() => handleCopy(item.auth_method!, 'auth_method')}>
@@ -190,13 +190,13 @@ export function DetailPanel() {
         )}
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.lastRotated')}</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.lastRotated')}</label>
           <span className="text-gray-700 dark:text-gray-300">{formatRotationDate(item.rotation_date)}</span>
         </div>
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -209,7 +209,7 @@ export function DetailPanel() {
     return (
       <div className="space-y-4">
         <div>
-          <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
+          <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-300">
             Variables ({item.variables.length})
           </label>
           <div className="space-y-2">
@@ -243,7 +243,7 @@ export function DetailPanel() {
 
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -253,7 +253,7 @@ export function DetailPanel() {
 
   const renderField = (label: string, value: string, mono = false, secret = false) => (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{label}</label>
       <div className="flex items-center gap-2">
         <span className={`font-medium dark:text-gray-100 ${mono ? 'font-mono text-sm' : ''}`}>
           {value === '' ? '—' : secret ? '••••••••' : value}
@@ -264,7 +264,7 @@ export function DetailPanel() {
 
   const renderSecretField = (label: string, value: string | undefined, shown: boolean, onToggle: () => void, suffix?: string) => (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{label}</label>
       <div className="flex items-center gap-2">
         <span className="font-mono text-sm font-medium dark:text-gray-100">
           {value === undefined || value === '' ? '—' : shown ? value : `••••••••${suffix ?? ''}`}
@@ -294,7 +294,7 @@ export function DetailPanel() {
         {renderSecretField(t('detail.password'), item.password, showPassword, () => setShowPassword(!showPassword))}
         {item.connection_url && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.connectionUrl')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.connectionUrl')}</label>
             <div className="flex items-center gap-2">
               <span className="break-all font-mono text-sm dark:text-gray-100">{item.connection_url}</span>
               <Button variant="ghost" size="sm" onClick={() => handleCopy(item.connection_url!, 'connection_url')}>
@@ -305,7 +305,7 @@ export function DetailPanel() {
         )}
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -324,7 +324,7 @@ export function DetailPanel() {
         {renderSecretField(t('detail.keyPassphrase'), item.passphrase, showKeyValue, () => setShowKeyValue(!showKeyValue))}
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -342,7 +342,7 @@ export function DetailPanel() {
         {item.region && renderField(t('detail.region'), item.region)}
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -358,12 +358,12 @@ export function DetailPanel() {
         {renderSecretField(t('detail.licenseKey'), item.license_key, showKeyValue, () => setShowKeyValue(!showKeyValue))}
         {item.bound_email && renderField(t('detail.boundEmail'), item.bound_email)}
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.expiryDate')}</label>
+          <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.expiryDate')}</label>
           <span className="text-gray-700 dark:text-gray-300">{formatExpiryDate(item.expiry_date)}</span>
         </div>
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -382,7 +382,7 @@ export function DetailPanel() {
         {item.from_address && renderField(t('detail.fromAddress'), item.from_address)}
         {item.notes && (
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-400">{t('detail.notes')}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-500 dark:text-gray-300">{t('detail.notes')}</label>
             <p className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">{item.notes}</p>
           </div>
         )}
@@ -418,7 +418,7 @@ export function DetailPanel() {
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold dark:text-gray-100">{selectedItem.title}</h1>
-          <span className="text-sm text-gray-500 capitalize dark:text-gray-400">{t(`type.${selectedItem.type}`)}</span>
+          <span className="text-sm text-gray-500 capitalize dark:text-gray-300">{t(`type.${selectedItem.type}`)}</span>
           {itemTags.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1">
               {itemTags.map((tag) => (
@@ -459,13 +459,13 @@ export function DetailPanel() {
       )}
       {customFields.length > 0 && (
         <div className="mt-6 border-t border-gray-200 pt-4 dark:border-gray-700">
-          <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-400">
+          <label className="mb-2 block text-sm font-medium text-gray-500 dark:text-gray-300">
             {t('customFields.title')}
           </label>
           <div className="space-y-2">
             {customFields.map((field) => (
               <div key={field.id} className="flex items-center gap-2">
-                <span className="w-40 shrink-0 truncate text-sm text-gray-500 dark:text-gray-400">
+                <span className="w-40 shrink-0 truncate text-sm text-gray-500 dark:text-gray-300">
                   {field.key}
                 </span>
                 <span className="min-w-0 flex-1 truncate font-mono text-sm dark:text-gray-200">

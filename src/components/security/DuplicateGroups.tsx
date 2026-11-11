@@ -96,7 +96,7 @@ export function DuplicateGroups() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <h3 className="text-sm font-medium dark:text-gray-100">{t('duplicates.title')}</h3>
-      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">{t('duplicates.hint')}</p>
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-300">{t('duplicates.hint')}</p>
 
       {error && (
         <p className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
@@ -121,11 +121,11 @@ export function DuplicateGroups() {
       )}
 
       {loading && groups.length === 0 && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">{t('common.loading')}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-300">{t('common.loading')}</p>
       )}
 
       {!loading && groups.length === 0 && !error && (
-        <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+        <p className="rounded-md border border-gray-200 bg-white p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
           {t('duplicates.empty')}
         </p>
       )}
@@ -142,7 +142,7 @@ export function DuplicateGroups() {
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <h4 className="text-sm font-medium dark:text-gray-100">
                   {t(`type.${group.type}`)}
-                  <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="ml-1 text-xs text-gray-500 dark:text-gray-300">
                     {t('duplicates.count', { count: group.items.length })}
                   </span>
                 </h4>
@@ -169,15 +169,15 @@ export function DuplicateGroups() {
                           setSelected((prev) => ({ ...prev, [group.key]: item.id }))
                         }
                       />
-                      <span className="text-gray-500 dark:text-gray-400">
+                      <span className="text-gray-500 dark:text-gray-300">
                         {t('duplicates.keep')}
                       </span>
                     </label>
                     <span className="font-medium dark:text-gray-100">{item.title}</span>
-                    <span className="text-gray-500 dark:text-gray-400">
+                    <span className="text-gray-500 dark:text-gray-300">
                       {groupName(item.group_id)}
                     </span>
-                    <span className="text-gray-400 dark:text-gray-500">
+                    <span className="text-gray-400 dark:text-gray-300">
                       {t('duplicates.created', {
                         time: new Date(item.created_at * 1000).toLocaleString(),
                       })}

@@ -99,7 +99,7 @@ function App() {
       <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">{t('app.loading')}</p>
+          <p className="text-gray-500 dark:text-gray-300">{t('app.loading')}</p>
         </div>
       </div>
     );

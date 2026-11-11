@@ -29,13 +29,13 @@ const Section = ({
     <div className={`rounded-md border p-3 ${color}`}>
       <h3 className="mb-2 text-sm font-medium">
         {title}
-        <span className="ml-1 text-xs text-gray-500">({findings.length})</span>
+        <span className="ml-1 text-xs text-gray-500 dark:text-gray-300">({findings.length})</span>
       </h3>
       <ul className="space-y-1">
         {findings.map((f, i) => (
           <li key={i} className="flex items-center justify-between text-xs">
             <span className="dark:text-gray-200">
-              {f.title} — <span className="text-gray-500 dark:text-gray-400">{f.detail}</span>
+              {f.title} — <span className="text-gray-500 dark:text-gray-300">{f.detail}</span>
             </span>
             <button onClick={() => onJump(f.item_id)} className="text-primary-600 hover:underline dark:text-primary-400">
               {t('security.view')}
@@ -110,7 +110,7 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
           className={`rounded-md border px-3 py-1 ${
             tab === 'security'
               ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'
+              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-300'
           }`}
         >
           {t('audit.tabSecurity')}
@@ -120,7 +120,7 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
           className={`rounded-md border px-3 py-1 ${
             tab === 'activity'
               ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'
+              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-300'
           }`}
         >
           {t('audit.tabActivity')}
@@ -130,7 +130,7 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
           className={`rounded-md border px-3 py-1 ${
             tab === 'duplicates'
               ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-400'
+              : 'border-gray-300 text-gray-500 dark:border-gray-600 dark:text-gray-300'
           }`}
         >
           {t('duplicates.tab')}
@@ -143,8 +143,8 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
         <DuplicateGroups />
       ) : (
         <>
-      {loading && <p className="text-sm text-gray-500">{t('security.analyzing')}</p>}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {loading && <p className="text-sm text-gray-500 dark:text-gray-300">{t('security.analyzing')}</p>}
+      {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
 
       {audit && !loading && (
         <div className="flex-1 space-y-3 overflow-y-auto">
@@ -161,13 +161,13 @@ export function SecurityPanel({ onClose }: { onClose: () => void }) {
             <div key={i} className="rounded-md border border-orange-200 bg-orange-50 p-3 dark:border-orange-900 dark:bg-orange-900/20">
               <h3 className="mb-2 text-sm font-medium">
                 {t('security.reusedSecrets')} <span className="font-mono">{g.secret_hint}</span>
-                <span className="ml-1 text-xs text-gray-500">({g.items.length})</span>
+                <span className="ml-1 text-xs text-gray-500 dark:text-gray-300">({g.items.length})</span>
               </h3>
               <ul className="space-y-1">
                 {g.items.map((f, j) => (
                   <li key={j} className="flex items-center justify-between text-xs">
                     <span className="dark:text-gray-200">
-                      {f.title} — <span className="text-gray-500">{f.detail}</span>
+                      {f.title} — <span className="text-gray-500 dark:text-gray-300">{f.detail}</span>
                     </span>
                     <button onClick={() => jump(f.item_id)} className="text-primary-600 hover:underline dark:text-primary-400">
                       {t('security.view')}

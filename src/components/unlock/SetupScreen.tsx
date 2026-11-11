@@ -34,7 +34,7 @@ export function SetupScreen() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
       <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-lg dark:bg-gray-800">
         <h1 className="mb-2 text-center text-2xl font-bold dark:text-gray-100">SecKeyBox</h1>
-        <p className="mb-6 text-center text-gray-500 dark:text-gray-400">{t('setup.subtitle')}</p>
+        <p className="mb-6 text-center text-gray-500 dark:text-gray-300">{t('setup.subtitle')}</p>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -56,7 +56,7 @@ export function SetupScreen() {
               placeholder={t('setup.confirmPasswordPlaceholder')}
             />
           </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? t('setup.creating') : t('setup.createVault')}
           </Button>

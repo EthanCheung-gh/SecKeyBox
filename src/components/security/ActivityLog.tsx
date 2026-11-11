@@ -50,7 +50,7 @@ export function ActivityLog() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
           <Activity className="h-4 w-4" />
           {t('audit.hint')}
         </div>
@@ -62,11 +62,11 @@ export function ActivityLog() {
         </button>
       </div>
 
-      {loading && <p className="text-sm text-gray-500">{t('common.loading')}</p>}
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {loading && <p className="text-sm text-gray-500 dark:text-gray-300">{t('common.loading')}</p>}
+      {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
 
       {!loading && entries.length === 0 && (
-        <p className="rounded-md border border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        <p className="rounded-md border border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-300">
           <ShieldCheck className="mb-1 inline h-4 w-4" /> {t('audit.empty')}
         </p>
       )}
@@ -74,7 +74,7 @@ export function ActivityLog() {
       {entries.length > 0 && (
         <div className="overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
           <table className="w-full text-sm">
-            <thead className="bg-gray-100 text-left text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+            <thead className="bg-gray-100 text-left text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-300">
               <tr>
                 <th className="px-3 py-2 font-medium">{t('audit.colTime')}</th>
                 <th className="px-3 py-2 font-medium">{t('audit.colEvent')}</th>
@@ -85,7 +85,7 @@ export function ActivityLog() {
             <tbody>
               {entries.map((entry) => (
                 <tr key={entry.id} className="border-t border-gray-100 dark:border-gray-800">
-                  <td className="whitespace-nowrap px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  <td className="whitespace-nowrap px-3 py-1.5 text-xs text-gray-500 dark:text-gray-300">
                     {formatTime(entry.created_at)}
                   </td>
                   <td className={`whitespace-nowrap px-3 py-1.5 text-xs font-medium ${tone(entry.event)}`}>
@@ -94,7 +94,7 @@ export function ActivityLog() {
                   <td className="max-w-[14rem] truncate px-3 py-1.5 text-xs dark:text-gray-300">
                     {entry.item_title ?? '—'}
                   </td>
-                  <td className="max-w-[16rem] truncate px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  <td className="max-w-[16rem] truncate px-3 py-1.5 text-xs text-gray-500 dark:text-gray-300">
                     {entry.detail ?? '—'}
                   </td>
                 </tr>

@@ -71,7 +71,7 @@ export function ChangePasswordModal() {
       <Button
         variant="ghost"
         size="sm"
-        className="w-full justify-start text-gray-500 dark:text-gray-400"
+        className="w-full justify-start text-gray-500 dark:text-gray-300"
         onClick={() => setIsOpen(true)}
       >
         <KeyRound className="mr-2 h-4 w-4" /> {t('changePassword.open')}
@@ -134,7 +134,7 @@ export function ChangePasswordModal() {
               )}
             </div>
 
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-gray-300">
               {t('changePassword.warning')}
             </p>
 

@@ -16,7 +16,7 @@ export function SecretHistoryList({ entries }: { entries: SecretHistoryEntry[] }
     <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+        className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-200"
       >
         {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         {t('history.titleWithCount', { count: entries.length })}
@@ -24,8 +24,8 @@ export function SecretHistoryList({ entries }: { entries: SecretHistoryEntry[] }
       {open && (
         <div className="mt-2 space-y-1">
           {entries.map((entry, i) => (
-            <div key={i} className="flex items-center justify-between text-xs dark:text-gray-400">
-              <span className="text-gray-400">{formatTime(entry.changed_at)}</span>
+            <div key={i} className="flex items-center justify-between text-xs dark:text-gray-300">
+              <span className="text-gray-400 dark:text-gray-300">{formatTime(entry.changed_at)}</span>
               <button
                 onClick={() => copySecret(entry.value).catch(() => undefined)}
                 className="font-mono text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"

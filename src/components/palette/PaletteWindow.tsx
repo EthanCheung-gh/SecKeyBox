@@ -121,11 +121,11 @@ export function PaletteWindow() {
         </button>
       </div>
 
-      {status && <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">{status}</p>}
+      {status && <p className="mb-1 text-xs text-gray-500 dark:text-gray-300">{status}</p>}
 
       <div className="max-h-[280px] flex-1 overflow-y-auto">
         {results.length === 0 ? (
-          <p className="py-4 text-center text-sm text-gray-400">
+          <p className="py-4 text-center text-sm text-gray-400 dark:text-gray-300">
             {query ? t('palette.noMatch') : t('palette.typeToSearch')}
           </p>
         ) : (
@@ -139,13 +139,13 @@ export function PaletteWindow() {
               }`}
             >
               <div className="text-sm font-medium dark:text-gray-100">{item.title}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">{item.subtitle}</div>
+              <div className="text-xs text-gray-500 dark:text-gray-300">{item.subtitle}</div>
             </button>
           ))
         )}
       </div>
 
-      <p className="mt-1 text-center text-[10px] text-gray-400">
+      <p className="mt-1 text-center text-[10px] text-gray-400 dark:text-gray-300">
         {t('palette.footer')}
       </p>
     </div>
